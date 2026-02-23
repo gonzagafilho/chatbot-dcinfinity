@@ -1,0 +1,66 @@
+require("dotenv").config({ override: true });
+
+const express = require("express");
+const path = require("path");
+const cors = require("cors");
+const rateLimit = require("express-rate-limit");
+
+const connectDB = require("./config/db");
+connectDB();
+
+const chatRoutes = require("./routes/chat.routes");
+const whatsappWebhook = require("./routes/whatsappWebhook");
+
+// ✅ IMPORTA O MIDDLEWARE AQUI
+const tenantMiddleware = require("./middlewares/tenantMiddleware");
+
+const app = express();
+app.set("trust proxy", 1); // Nginx/Proxy
+
+const ALLOWED_ORIGINS = [
+  "https://dcinfinity.net.br",
+  "https://www.dcinfinity.net.br",
+];
+
+// 1) body parser
+app.use(express.json({ limit: "250kb" }));
+
+// ✅ 2) tenant middleware (ANTES do CORS e das rotas)
+app.use(tenantMiddleware);
+
+// 3) CORS
+app.use(
+  cors({
+    origin: function (origin, cb) {
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
+
+// 4) rate limit
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 40,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+);
+
+
+app.get("/health", (req, res) => {
+  res.json({ ok: true, service: "chatbot-dcinfinity" });
+});
+
+// public widget
+app.use("/widget", express.static(path.join(__dirname, "..", "public", "widget")));
+
+});
+
+// 5) rotas (depois de tudo)
+app.use(whatsappWebhook); // /webhook/whatsapp
+app.use("/api", chatRoutes); // POST /api/chat
+
+module.exports = app;

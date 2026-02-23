@@ -1,0 +1,13 @@
+// src/rules/dispatcher.js
+import { ruleDcnet } from "./tenants/dcnet.js";
+import { ruleSite2 } from "./tenants/site2.js";
+
+const TENANT_RULES = {
+  dcnet: ruleDcnet,
+  site2: ruleSite2,
+};
+
+export async function handleMessage({ tenantId, channel, from, text }) {
+  const fn = TENANT_RULES[tenantId] || TENANT_RULES["dcnet"];
+  return fn({ tenantId, channel, from, text });
+}

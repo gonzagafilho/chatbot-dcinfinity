@@ -1,0 +1,29 @@
+const mongoose = require("mongoose");
+
+const LeadSchema = new mongoose.Schema(
+  {
+  // ✅ multitenant
+  tenant: { type: String, default: "dcnet", index: true },
+  channel: { type: String, default: "whatsapp", index: true },
+  origin: { type: String, default: null }, // domínio/origem (web) | null no WhatsApp
+
+  // inbound msg.id
+  waMessageId: { type: String },
+
+  // outbound wamid
+  wamid: { type: String },
+
+  direction: { type: String, enum: ["inbound", "outbound"], required: true },
+
+  from: { type: String, default: "" },
+  to: { type: String, default: "" },
+
+  text: { type: String, default: "" },
+  intent: { type: String, default: "" },
+  page: { type: String, default: "" },
+
+  raw: { type: mongoose.Schema.Types.Mixed },
+}
+);
+
+module.exports = mongoose.models.Lead || mongoose.model("Lead", LeadSchema);

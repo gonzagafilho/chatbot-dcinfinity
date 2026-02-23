@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1770315864136-265",
+    "createdAt": "2026-02-05T18:24:24.136Z",
+    "name": "Teste Lead",
+    "phone": "61999999999",
+    "intent": "sales",
+    "plan": "600",
+    "neighborhood": "Planaltina",
+    "message": "comercial"
+  },
+  {
+    "id": "1770316020073-90",
+    "createdAt": "2026-02-05T18:27:00.073Z",
+    "name": "Teste Lead",
+    "phone": "61999999999",
+    "intent": "sales",
+    "plan": "600",
+    "neighborhood": "Planaltina",
+    "message": "comercial"
+  },
+  {
+    "id": "1770318997535-937",
+    "createdAt": "2026-02-05T19:16:37.535Z",
+    "name": "luioz",
+    "phone": "619960887811",
+    "intent": "sales",
+    "plan": "600",
+    "neighborhood": "nova esperança",
+    "message": "comercial"
+  }
+]

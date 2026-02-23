@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel Admin DCINFINITY</title>
+
+  <style>
+    body{margin:0;font-family:Arial;background:#0b1220;color:#e5e7eb}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:1fr 2fr;gap:18px}
+    .card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px}
+    h2{margin:0 0 12px}
+    input,select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:#e5e7eb}
+    button{padding:10px 14px;border:0;border-radius:10px;cursor:pointer;font-weight:700}
+    .btn{background:#22c55e;color:#04130a}
+    .btn2{background:#38bdf8;color:#02131a}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .muted{opacity:.7;font-size:12px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border-bottom:1px solid rgba(255,255,255,.08);padding:10px;text-align:left;font-size:13px}
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.07)}
+    .click{cursor:pointer}
+    .ok{color:#22c55e}
+    .err{color:#fb7185}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>Login Admin</h2>
+
+        <form id="loginForm">
+          <div class="row">
+            <div>
+              <div class="muted">Email</div>
+              <input id="email" autocomplete="username" placeholder="admin@dcinfinity.net.br" />
+            </div>
+            <div>
+              <div class="muted">Senha</div>
+              <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+            </div>
+          </div>
+
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+            <button class="btn" type="submit">Entrar</button>
+            <span id="loginStatus" class="muted"></span>
+          </div>
+        </form>
+
+        <hr style="border:0;border-top:1px solid rgba(255,255,255,.08);margin:16px 0">
+
+        <h2>Leads</h2>
+
+        <div class="row">
+          <div>
+            <div class="muted">Tenant</div>
+            <select id="tenant">
+              <option value="dcsolar">dcsolar</option>
+              <option value="dcnet">dcnet</option>
+              <option value="default">default</option>
+            </select>
+          </div>
+          <div>
+            <div class="muted">Limite</div>
+            <input id="limit" type="number" value="50" min="1" max="200" />
+          </div>
+        </div>
+
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+          <button id="btnLoadLeads" class="btn2" type="button">Carregar Leads</button>
+          <span id="leadsStatus" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Lista</h2>
+        <div class="muted">Clique em um lead para abrir as mensagens.</div>
+
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tenant</th>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Mensagem</th>
+              </tr>
+            </thead>
+            <tbody id="leadsTbody"></tbody>
+          </table>
+        </div>
+
+        <div id="convBox" style="margin-top:16px;display:none">
+          <h2>Conversa</h2>
+          <div class="muted" id="convTitle"></div>
+          <div id="convMsgs" style="margin-top:10px;max-height:420px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;background:rgba(0,0,0,.22)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ SEM SCRIPT INLINE (CSP ok) -->
+  <script src="/admin/panel.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+const axios = require("axios");
+
+async function sendWhatsAppText({ to, text }) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = process.env.WHATSAPP_TOKEN;
+
+  if (!phoneNumberId) throw new Error("WHATSAPP_PHONE_NUMBER_ID missing");
+  if (!token) throw new Error("WHATSAPP_TOKEN missing");
+
+  const url = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "text",
+    text: { body: text },
+  };
+
+  const r = await axios.post(url, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    timeout: 20000,
+  });
+
+  return r.data;
+}
+
+module.exports = { sendWhatsAppText };

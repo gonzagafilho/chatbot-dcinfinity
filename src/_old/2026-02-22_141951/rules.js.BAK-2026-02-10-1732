@@ -1,0 +1,141 @@
+const express = require("express");
+const replyFromRules = require("../services/rules");
+const { sendWhatsAppText } = require("../services/whatsappSend");
+const WaMessage = require("../models/WaMessage");
+const Lead = require("../models/Lead");
+
+const router = express.Router();
+
+/**
+ * DEDUPE em memória (evita responder duplicado em caso de retry da Meta)
+ */
+const seen = new Map();
+const TTL_MS = 10 * 60 * 1000;
+
+function wasSeen(id) {
+  if (!id) return false;
+  const now = Date.now();
+  for (const [k, t] of seen) {
+    if (now - t > TTL_MS) seen.delete(k);
+  }
+  if (seen.has(id)) return true;
+  seen.set(id, now);
+  return false;
+}
+
+// Verificação da Meta (GET)
+router.get("/webhook/whatsapp", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
+
+// Recebimento de mensagens (POST)
+router.post("/webhook/whatsapp", async (req, res) => {
+  // responde rápido pra Meta não reenviar
+  res.sendStatus(200);
+
+  try {
+    const entry = req.body?.entry?.[0];
+    const change = entry?.changes?.[0];
+    const value = change?.value;
+
+    const msg = value?.messages?.[0];
+    if (!msg) return;
+
+    const waMessageId = msg.id;
+    const from = msg.from;
+    const text = msg.text?.body || "";
+    const toPhoneId = value?.metadata?.phone_number_id || "";
+
+    console.log("📩 WhatsApp inbound:", { waMessageId, from, text });
+
+    if (wasSeen(waMessageId)) {
+      console.log("🔁 DEDUPE: evento repetido ignorado:", waMessageId);
+      return;
+    }
+
+    // salva inbound
+    try {
+      await WaMessage.create({
+        waMessageId,
+        direction: "inbound",
+        from,
+        to: toPhoneId,
+        text,
+        raw: req.body,
+      });
+    } catch (e) {
+      if (String(e?.code) !== "11000") {
+        console.error("❌ Erro ao salvar inbound:", e?.message || e);
+      }
+    }
+
+    // upsert lead
+    try {
+      await Lead.findOneAndUpdate(
+        { phone: from },
+        { $set: { lastMessage: text, origin: "whatsapp" } },
+        { upsert: true, new: true }
+      );
+    } catch (e) {
+      console.error("❌ Erro ao atualizar lead:", e?.message || e);
+    }
+
+    // regras
+    const result = replyFromRules({
+      message: text,
+      origin: "whatsapp",
+      page: "whatsapp",
+      phone: from,
+    });
+
+    const replyText =
+      typeof result === "string"
+        ? result
+        : (result?.reply || "Ok.");
+
+    console.log("🤖 Reply rules:", replyText);
+
+    // envia resposta
+    const sent = await sendWhatsAppText(from, replyText);
+
+    // salva outbound
+    try {
+      await WaMessage.create({
+        wamid: sent?.messages?.[0]?.id,
+        direction: "outbound",
+        from: toPhoneId,
+        to: from,
+        text: replyText,
+        raw: sent,
+      });
+    } catch (e) {
+      console.error("❌ Erro ao salvar outbound:", e?.message || e);
+    }
+
+    // atualiza lead com intent (opcional)
+    try {
+      await Lead.findOneAndUpdate(
+        { phone: from },
+        { $set: { lastIntent: result?.intent || "", lastMessage: replyText } },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.error("❌ Erro ao atualizar lead (intent):", e?.message || e);
+    }
+  } catch (err) {
+    console.error("❌ Webhook error:", err?.response?.data || err?.message || err);
+  }
+});
+
+function replyFromRules(payload) {
+  return replyFromRulesInternal(payload);
+}
+
+module.exports = replyFromRules;

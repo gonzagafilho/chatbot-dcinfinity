@@ -1,0 +1,32 @@
+const mongoose = require("mongoose");
+
+const LeadSchema = new mongoose.Schema(
+  {
+    // ✅ multitenant
+    tenant: { type: String, default: "dcnet", index: true },
+
+    // Identidade do lead
+    phone: { type: String, required: true, index: true }, // ex: "556199..."
+    name: { type: String, default: "" },
+
+    // Contexto do último contato
+    channel: { type: String, default: "whatsapp", index: true }, // whatsapp | web
+    origin: { type: String, default: null }, // domínio/origem (web) | null no WhatsApp
+
+    lastMessage: { type: String, default: "" },
+    lastIntent: { type: String, default: null },
+
+    // Metadados úteis
+    lastSeenAt: { type: Date, default: Date.now },
+    createdAt: { type: Date, default: Date.now },
+
+    // Campo livre pra guardar dados do cliente (ex: BeesWeb)
+    meta: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true }
+);
+
+// 1 lead por tenant + phone
+LeadSchema.index({ tenant: 1, phone: 1 }, { unique: true });
+
+module.exports = mongoose.models.Lead || mongoose.model("Lead", LeadSchema);
