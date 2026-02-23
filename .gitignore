@@ -3,3 +3,27 @@ node_modules/
 logs/
 *.log
 dist/
+ # deps
+node_modules/
+
+# env / secrets
+.env
+.env.*
+_backup/
+*.pem
+*.key
+*.pfx
+*.p12
+
+# logs
+logs/
+*.log
+
+# build
+dist/
+build/
+.next/
+coverage/
+
+# misc
+.DS_Store
