@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel do Tenant - Chatbot DCInfinity</title>
+  <style>
+    :root{
+      --bg:#050a16; --panel:#0b1630; --panel2:#0e1b39; --line:#1b2a55;
+      --text:#e6eeff; --muted:#9db0d9; --ok:#2dd4bf; --warn:#fbbf24; --bad:#fb7185;
+      --btn:#142a58;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
+      background:radial-gradient(1200px 600px at 30% 10%, #0b2a7a33, transparent),
+                 radial-gradient(900px 500px at 70% 0%, #1d4ed833, transparent),
+                 var(--bg);
+      color:var(--text);
+    }
+    .wrap{max-width:980px;margin:44px auto;padding:0 16px;}
+    .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+      border-radius:14px;padding:18px 18px;box-shadow:0 10px 30px #00000055;margin-bottom:14px;
+    }
+    h1{margin:0 0 6px 0;font-size:26px}
+    .muted{color:var(--muted);font-size:13px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,select,button,textarea{
+      background:#0b1430;border:1px solid var(--line);color:var(--text);
+      padding:10px 12px;border-radius:10px;outline:none;
+    }
+    input:focus,textarea:focus{border-color:#2b49a3}
+    button{background:var(--btn);cursor:pointer;font-weight:600}
+    button:hover{filter:brightness(1.1)}
+    .grow{flex:1}
+    .status{margin-top:8px;font-size:13px}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+    .grid{display:grid;grid-template-columns:320px 1fr;gap:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .box{border:1px solid var(--line);border-radius:12px;background:#07112a;padding:12px}
+    .lead{border:1px solid var(--line);border-radius:12px;background:#07112a;padding:10px;margin-bottom:10px;cursor:pointer}
+    .lead:hover{border-color:#2b49a3}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+    .msgs{max-height:520px;overflow:auto;padding-right:6px}
+    .msg{border:1px solid var(--line);border-radius:12px;background:#07112a;padding:10px;margin-bottom:10px}
+    .msg .meta{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+    .msg .txt{margin-top:6px;white-space:pre-wrap}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    textarea{width:100%;min-height:90px;resize:vertical}
+    .small{font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Painel do Tenant</h1>
+      <div id="status" class="muted">Deslogado</div>
+    </div>
+
+    <div id="loginCard" class="card">
+      <div style="font-weight:700;margin-bottom:10px">Login</div>
+      <div class="row">
+        <input id="tenant" placeholder="tenant (ex: dcsolar)" style="width:220px" />
+        <input id="email" placeholder="email" style="width:260px" />
+        <input id="password" type="password" placeholder="senha" style="width:220px" />
+        <button id="btnLogin" style="width:140px">Entrar</button>
+      </div>
+      <div id="loginMsg" class="status muted"></div>
+    </div>
+
+    <div id="app" class="card" style="display:none">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <div id="me" style="font-weight:700">—</div>
+          <div class="small" id="me2">—</div>
+        </div>
+        <div class="row">
+          <button id="btnLogout">Sair</button>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:14px">
+        <div class="box">
+          <div class="row" style="justify-content:space-between">
+            <div style="font-weight:700">Leads</div>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <select id="filterStatus" class="grow">
+              <option value="">Todos</option>
+              <option value="novo">novo</option>
+              <option value="handoff">handoff</option>
+              <option value="em_atendimento">em_atendimento</option>
+              <option value="resolvido">resolvido</option>
+            </select>
+            <input id="q" class="grow" placeholder="buscar (ex: web_teste999)" />
+            <button id="btnRefresh">Atualizar</button>
+          </div>
+
+          <div id="leads" style="margin-top:10px"></div>
+        </div>
+
+        <div class="box">
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <div style="font-weight:700">Conversa</div>
+              <div id="currentLead" class="small">—</div>
+            </div>
+            <div class="actions">
+              <button id="btnTake">Assumir</button>
+              <button id="btnRelease">Liberar</button>
+              <button id="btnResolve">Finalizar</button>
+            </div>
+          </div>
+
+          <div class="msgs" id="msgs" style="margin-top:10px"></div>
+
+          <div style="margin-top:10px">
+            <textarea id="text" placeholder="Digite uma mensagem..."></textarea>
+            <div class="row" style="justify-content:space-between;margin-top:8px">
+              <div id="sendMsg" class="small"></div>
+              <button id="btnSend">Enviar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="appMsg" class="status muted" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- IMPORTANTE: JS externo (CSP/Helmet não bloqueia) -->
+  <script src="./app.js"></script>
+</body>
+</html>

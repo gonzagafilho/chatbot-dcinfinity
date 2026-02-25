@@ -27,3 +27,7 @@ coverage/
 
 # misc
 .DS_Store
+_old/
+*.bak
+*.tar.gz
+backup-estrutura-*

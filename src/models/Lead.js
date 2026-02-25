@@ -11,7 +11,11 @@ const LeadSchema = new mongoose.Schema(
 
     lastMessage: { type: String, default: "" },
     lastIntent: { type: String, default: null },
-
+    assignedTo: { type: String, default: null },     // adminId/email
+    assignedToEmail: { type: String, default: null },
+    assignedAt: { type: Date, default: null },
+    resolvedAt: { type: Date, default: null },
+    
     status: { type: String, default: "novo", index: true }, // novo | em_atendimento | resolvido
   },
   { timestamps: true }

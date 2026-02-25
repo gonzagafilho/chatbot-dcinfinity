@@ -30,6 +30,8 @@
 <body>
   <div class="wrap">
     <div class="grid">
+
+      <!-- COLUNA ESQUERDA -->
       <div class="card">
         <h2>Login Admin</h2>
 
@@ -45,8 +47,9 @@
             </div>
           </div>
 
-          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
-            <button class="btn" type="submit">Entrar</button>
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button id="btnLogin" class="btn" type="submit">Entrar</button>
+            <button id="btnLogout" class="btn2" type="button" style="display:none">Sair</button>
             <span id="loginStatus" class="muted"></span>
           </div>
         </form>
@@ -66,16 +69,45 @@
           </div>
           <div>
             <div class="muted">Limite</div>
-            <input id="limit" type="number" value="50" min="1" max="200" />
+            <input id="limit" type="number" value="20" min="1" max="200" />
           </div>
         </div>
 
-        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+        <!-- filtros -->
+        <div class="row" style="margin-top:10px">
+          <div>
+            <div class="muted">Status</div>
+            <select id="status">
+              <option value="">todos</option>
+              <option value="novo">novo</option>
+              <option value="handoff">handoff</option>
+              <option value="resolvido">resolvido</option>
+            </select>
+          </div>
+          <div>
+            <div class="muted">Busca (q)</div>
+            <input id="q" placeholder="web_teste999, nome, mensagem..." />
+          </div>
+        </div>
+
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <button id="btnLoadLeads" class="btn2" type="button">Carregar Leads</button>
           <span id="leadsStatus" class="muted"></span>
         </div>
+
+        <!-- paginação -->
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button id="btnPrev" class="btn2" type="button">◀ Anterior</button>
+          <button id="btnNext" class="btn2" type="button">Próximo ▶</button>
+          <span class="muted" id="pageInfo"></span>
+        </div>
+
+        <div class="muted" style="margin-top:8px">
+          Dica: clique em “Carregar Leads” e depois clique no lead para abrir a conversa.
+        </div>
       </div>
 
+      <!-- COLUNA DIREITA -->
       <div class="card">
         <h2>Lista</h2>
         <div class="muted">Clique em um lead para abrir as mensagens.</div>
@@ -98,9 +130,24 @@
         <div id="convBox" style="margin-top:16px;display:none">
           <h2>Conversa</h2>
           <div class="muted" id="convTitle"></div>
+          <div class="muted" id="ownerInfo" style="margin-top:6px"></div>
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button id="btnAssumir" class="btn2" type="button">Assumir (em atendimento)</button>
+            <button id="btnFinalizar" class="btn" type="button">Finalizar (resolvido)</button>
+            <button id="btnHandoff" class="btn2" type="button">Voltar p/ handoff</button>
+            <button id="btnLiberar" class="btn2" type="button">Liberar</button>
+            <span id="statusStatus" class="muted"></span>
+            <span id="statusStatus" class="muted"></span>
+          </div>
           <div id="convMsgs" style="margin-top:10px;max-height:420px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;background:rgba(0,0,0,.22)"></div>
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+            <textarea id="replyText" placeholder="Digite sua resposta..." style="flex:1;min-height:90px;width:100%;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:#e5e7eb"></textarea>
+           <button id="btnSend" class="btn" type="button">Enviar</button>
+         </div>
+         <div id="sendStatus" class="muted" style="margin-top:8px"></div>
         </div>
       </div>
+
     </div>
   </div>
 

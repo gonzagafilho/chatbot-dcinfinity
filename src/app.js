@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use strict";
 
 const express = require("express");
@@ -5,6 +6,8 @@ const path = require("path");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const tenantChatRoutes = require("./routes/tenantChat.routes.cjs");
+const adminTenantsRoutes = require("./routes/adminTenants.routes");
 
 const tenantMiddleware = require("./middlewares/tenantMiddleware");
 
@@ -13,7 +16,8 @@ const whatsappWebhook = require("./routes/whatsappWebhook");
 const chatRoutes = require("./routes/chat.routes");
 const handoffRoutes = require("./routes/handoff.routes");
 const adminRoutes = require("./routes/admin.routes");
-
+const tenantAuthRoutes = require("./routes/tenantAuth.routes.cjs");
+const tenantUsersRoutes = require("./routes/tenantUsers.routes.cjs");
 
 const app = express();
 
@@ -62,10 +66,13 @@ app.get("/health", (req, res) => {
 });
 
 // ✅ Widget público (IMPORTANTE: esse caminho é a raiz do projeto /public/widget)
-app.use("/widget", express.static(path.join(__dirname, "..", "public", "widget")));
+  app.use("/widget", express.static(path.join(__dirname, "..", "public", "widget")));
   // admin panel (static)
   app.use("/admin", express.static(path.join(__dirname, "..", "public", "admin")));
   app.get("/admin", (req, res) => res.redirect("/admin/"));
+  // tenant panel (static)
+  app.use("/tenant", express.static(path.join(__dirname, "..", "public", "tenant")));
+  app.get("/tenant", (req, res) => res.redirect("/tenant/"));
 
 
 // Tenant middleware antes das APIs
@@ -76,6 +83,11 @@ app.use(whatsappWebhook);        // /webhook/whatsapp
 app.use("/api", chatRoutes);     // /api/chat
 app.use("/api", handoffRoutes);
 app.use("/api", adminRoutes);
+app.use("/api", adminTenantsRoutes); // ✅ novo
+
+app.use("/api/tenant", tenantAuthRoutes);          // login, me
+app.use("/api/tenant", tenantChatRoutes);          // leads, messages, assign, send
+app.use("/api/tenant/users", tenantUsersRoutes);   // CRUD users
 
 
 module.exports = app;

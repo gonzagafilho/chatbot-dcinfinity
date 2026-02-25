@@ -15,8 +15,7 @@ const WaMessageSchema = new mongoose.Schema(
 
     direction: {
       type: String,
-      enum: ["inbound", "outbound"],
-      required: true,
+      direction: { type: String, enum: ["inbound", "outbound", "system"], required: true }
     },
 
     from: { type: String, default: "" },
