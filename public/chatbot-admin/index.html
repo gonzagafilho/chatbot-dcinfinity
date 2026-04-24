@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Central de Controle — Chatbot DC NET | DC Infinity</title>
+  <link rel="stylesheet" href="/chatbot-admin/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navegação do painel" hidden>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-title">DC Infinity</span>
+        <span class="sidebar-brand-sub">Chatbot — conteúdo</span>
+      </div>
+      <nav class="sidebar-nav" role="tablist" aria-label="Seções">
+        <button type="button" class="sidebar-link is-active" data-tab="dashboard" role="tab" aria-selected="true" aria-controls="tab-dashboard" id="tab-btn-dashboard">Dashboard</button>
+        <button type="button" class="sidebar-link" data-tab="campaigns" role="tab" aria-selected="false" aria-controls="tab-campaigns" id="tab-btn-campaigns">Campanhas</button>
+        <button type="button" class="sidebar-link" data-tab="messages" role="tab" aria-selected="false" aria-controls="tab-messages" id="tab-btn-messages">Mensagens</button>
+        <button type="button" class="sidebar-link" data-tab="maintenance" role="tab" aria-selected="false" aria-controls="tab-maintenance" id="tab-btn-maintenance">Manutenção</button>
+        <button type="button" class="sidebar-link" data-tab="beesweb" role="tab" aria-selected="false" aria-controls="tab-beesweb" id="tab-btn-beesweb">Clientes BeesWeb</button>
+      </nav>
+    </aside>
+
+    <div class="main-area">
+      <div class="main-inner">
+        <header class="page-header">
+          <h1>Central de Controle do Chatbot DC NET</h1>
+          <p class="sub">Gerencie campanhas, mensagens operacionais e avisos de manutenção em tempo real, sem alterar o fluxo aprovado do atendimento. Painel separado do de <strong>atendimento</strong> (<code>/admin</code>); autenticação: mesma conta admin (JWT).</p>
+        </header>
+
+        <div class="card" id="loginCard">
+          <h2>Login</h2>
+          <p class="muted">Usa <code>POST /api/admin/login</code> (mesmo backend do admin de atendimento).</p>
+          <div class="row">
+            <div style="flex:1;min-width:200px">
+              <label for="email">E-mail</label>
+              <input id="email" type="email" autocomplete="username" />
+            </div>
+            <div style="flex:1;min-width:200px">
+              <label for="password">Senha</label>
+              <input id="password" type="password" autocomplete="current-password" />
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" class="btn" id="btnLogin">Entrar</button>
+            <span id="loginStatus" class="muted"></span>
+          </div>
+        </div>
+
+        <div class="card editor-card" id="editorCard" style="display:none">
+          <div class="editor-toolbar">
+            <div class="editor-toolbar-left">
+              <h2 class="editor-toolbar-title">Configuração</h2>
+              <p class="muted editor-toolbar-hint">Tenant, carregar e encerrar sessão.</p>
+            </div>
+            <div class="editor-toolbar-actions">
+              <button type="button" class="btn2" id="btnLogout">Sair</button>
+            </div>
+          </div>
+
+          <div class="tenant-bar">
+            <div class="tenant-bar-field">
+              <label for="tenant">Tenant</label>
+              <select id="tenant">
+                <option value="dcnet">dcnet</option>
+                <option value="dcsolar">dcsolar</option>
+                <option value="site2">site2</option>
+                <option value="default">default</option>
+              </select>
+            </div>
+            <button type="button" class="btn2" id="btnLoad">Carregar config</button>
+          </div>
+
+          <div class="tab-panels">
+            <section class="tab-panel is-active" id="tab-dashboard" role="tabpanel" aria-labelledby="tab-btn-dashboard">
+              <h2 class="section-title">Dashboard</h2>
+              <div class="pro-card pro-card--status">
+                <h3 class="pro-card-title">Chatbot em produção</h3>
+                <p class="pro-card-text">O fluxo de atendimento da DC NET está ativo e protegido. Altere apenas conteúdos, campanhas e comunicados.</p>
+                <div class="status-card status-card--inset">
+                  <span class="status-dot" id="dashboardDot" aria-hidden="true"></span>
+                  <div>
+                    <p class="status-label">Status</p>
+                    <p class="status-value" id="dashboardStatus">Aguardando carregamento da configuração.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="pro-grid">
+                <div class="pro-card pro-card--feat">
+                  <h3 class="pro-card-title">Campanhas automáticas</h3>
+                  <p class="pro-card-text">Atualize imagens e textos sazonais para manter a comunicação da empresa sempre profissional.</p>
+                </div>
+                <div class="pro-card pro-card--feat">
+                  <h3 class="pro-card-title">Comunicados de manutenção</h3>
+                  <p class="pro-card-text">Prepare avisos rápidos para informar clientes sobre instabilidade, manutenção programada ou retorno previsto.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="tab-panel" id="tab-campaigns" role="tabpanel" aria-labelledby="tab-btn-campaigns" hidden>
+              <h2 class="section-title">Campanhas</h2>
+              <h3 class="subsection-title">URLs de imagem</h3>
+              <label>Aniversário</label><input id="c_aniversarioImage" type="url" /><img class="preview" data-for="c_aniversarioImage" alt="" />
+              <label>Páscoa</label><input id="c_pascoaImage" type="url" /><img class="preview" data-for="c_pascoaImage" alt="" />
+              <label>Dia das Mães</label><input id="c_diaDasMaesImage" type="url" /><img class="preview" data-for="c_diaDasMaesImage" alt="" />
+              <label>Dia dos Pais</label><input id="c_diaDosPaisImage" type="url" /><img class="preview" data-for="c_diaDosPaisImage" alt="" />
+              <label>Natal</label><input id="c_natalImage" type="url" /><img class="preview" data-for="c_natalImage" alt="" />
+              <label>Ano novo</label><input id="c_anoNovoImage" type="url" /><img class="preview" data-for="c_anoNovoImage" alt="" />
+
+              <h3 class="subsection-title" style="margin-top:20px">Textos curtos (opcional)</h3>
+              <label>Aniversário (legenda; vazio = mensagem automática atual)</label>
+              <textarea id="t_aniversarioText"></textarea>
+              <label class="muted"><input type="checkbox" id="a_aniversario" checked /> Aniversário ativo</label>
+            </section>
+
+            <section class="tab-panel" id="tab-messages" role="tabpanel" aria-labelledby="tab-btn-messages" hidden>
+              <h2 class="section-title">Mensagens operacionais</h2>
+              <label>Manutenção (texto)</label><textarea id="o_maintenanceMessage"></textarea>
+              <label>Instabilidade</label><textarea id="o_instabilityMessage"></textarea>
+              <label>Retorno previsto</label><textarea id="o_expectedReturnMessage"></textarea>
+              <label>Alerta curto</label><textarea id="o_shortAlertMessage"></textarea>
+            </section>
+
+            <section class="tab-panel" id="tab-maintenance" role="tabpanel" aria-labelledby="tab-btn-maintenance" hidden>
+              <h2 class="section-title">Manutenção (avisos ao usuário)</h2>
+              <p class="muted">Se <strong>ativa</strong> e com <strong>corpo</strong>, tem prioridade sobre avisos na coleção <code>MaintenanceNotice</code> (legado).</p>
+              <label><input type="checkbox" id="m_active" /> Manutenção ativa (config central)</label>
+              <label>Título</label><input id="m_title" type="text" />
+              <label>Corpo</label><textarea id="m_body"></textarea>
+              <label>ETA (ISO opcional, ex.: 2026-12-31T18:00:00.000Z)</label><input id="m_eta" type="text" placeholder="vazio = sem ETA" />
+            </section>
+
+            <section class="tab-panel" id="tab-beesweb" role="tabpanel" aria-labelledby="tab-btn-beesweb" hidden>
+              <h2 class="section-title">Disparo de manutenção para clientes BeesWeb</h2>
+              <p class="beesweb-lead">Área de preparação para avisos em lote. Nesta fase, <strong>ninguém recebe mensagem real</strong> — apenas pré-vias e simulação controlada via API.</p>
+              <div class="callout callout--warn" role="status">
+                <p class="callout-title">Atenção</p>
+                <p class="callout-text">O envio em massa ainda <strong>não</strong> está habilitado. O botão de confirmação exige passos extras e, quando liberado, exigirá confirmação dupla, registro de log, governança de taxa, pausa/cancelamento, validação de telefone e janela comercial. O backend atual não contém <code>POST</code> de massa real.</p>
+              </div>
+
+              <label for="mb_title">Título da mensagem</label>
+              <input id="mb_title" type="text" placeholder="Ex.: Manutenção programada" autocomplete="off" />
+              <label for="mb_message">Mensagem principal</label>
+              <textarea id="mb_message" rows="4" placeholder="Texto exibido ao destinatário"></textarea>
+              <label for="mb_return">Retorno previsto</label>
+              <input id="mb_return" type="text" placeholder="Ex.: 24/04/2026 às 20h" autocomplete="off" />
+
+              <fieldset class="fieldset-audience">
+                <legend>Público alvo</legend>
+                <label class="radio-line"><input type="radio" name="mb_audience" value="all" checked /> Todos os clientes</label>
+                <label class="radio-line"><input type="radio" name="mb_audience" value="active" /> Somente clientes ativos</label>
+                <label class="radio-line"><input type="radio" name="mb_audience" value="contract" /> Somente clientes com contrato ativo</label>
+              </fieldset>
+
+              <div class="fieldset-test" aria-label="Modo teste">
+                <p class="legend-like">Modo teste</p>
+                <label class="checkbox-line"><input type="checkbox" id="mb_testMode" /> Enviar somente para número de teste (modo teste)</label>
+                <label for="mb_testPhone">Número de teste (E.164 ou DDD + número — usado somente com modo teste ativo na validação)</label>
+                <input id="mb_testPhone" type="text" inputmode="tel" placeholder="+55…" autocomplete="off" />
+              </div>
+
+              <div class="row beesweb-actions">
+                <button type="button" class="btn2" id="btnMbPreview">Preparar envio</button>
+                <button type="button" class="btn2" id="btnMbTest">Enviar teste</button>
+                <button type="button" class="btn btn--danger" id="btnMbConfirm">Confirmar envio em massa</button>
+              </div>
+              <p class="muted beesweb-confirm-hint">O envio em massa <strong>real</strong> ainda não está habilitado. O botão abaixo só exige confirmação dupla e <strong>não chama o backend de massa</strong> (não implementado de propósito).</p>
+
+              <div class="result-block">
+                <p class="result-block-label">Resultado da simulação / API</p>
+                <pre id="mb_result" class="result-pre" aria-live="polite">(Nenhuma requisição ainda.)</pre>
+              </div>
+            </section>
+          </div>
+
+          <div class="save-bar">
+            <button type="button" class="btn" id="btnSave">Salvar</button>
+            <span id="saveStatus" class="muted"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="/chatbot-admin/panel.js" defer></script>
+</body>
+</html>
