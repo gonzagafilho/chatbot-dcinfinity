@@ -58,20 +58,21 @@
     else if (kind === "err") dot.classList.add("is-err");
   }
 
+  var MB_CONFIRM = "CONFIRMAR ENVIO DC NET";
+  var mbPreviewOk = false;
+  var mbPollTimer = null;
+  var mbActiveJobId = "";
+
   function getBroadcastBase() {
     var aud = document.querySelector('input[name="mb_audience"]:checked');
+    var r = (qs("mb_return") && qs("mb_return").value.trim()) || "";
     return {
+      tenant: (qs("tenant") && qs("tenant").value.trim()) || "dcnet",
       title: (qs("mb_title") && qs("mb_title").value.trim()) || "",
       message: (qs("mb_message") && qs("mb_message").value.trim()) || "",
-      expectedReturn: (qs("mb_return") && qs("mb_return").value.trim()) || "",
+      returnText: r,
+      expectedReturn: r,
       audience: aud ? aud.value : "all",
-    };
-  }
-
-  function getBroadcastTestExtras() {
-    return {
-      testMode: qs("mb_testMode") && qs("mb_testMode").checked,
-      testPhone: (qs("mb_testPhone") && qs("mb_testPhone").value.trim()) || "",
     };
   }
 
@@ -85,23 +86,101 @@
     }
   }
 
+  function invalidateMbPreview() {
+    mbPreviewOk = false;
+    updateMbCreateState();
+  }
+
+  function updateMbCreateState() {
+    var btn = qs("btnMbCreate");
+    var h = qs("mb_createHint");
+    if (!btn) return;
+    var phraseOk = qs("mb_confirm") && qs("mb_confirm").value.trim() === MB_CONFIRM;
+    var aware = qs("mb_ciente") && qs("mb_ciente").checked;
+    btn.disabled = !mbPreviewOk || !phraseOk || !aware;
+    if (h) {
+      h.textContent = btn.disabled
+        ? "Habilite o botão: 1) Prévia OK 2) Frase exata 3) Estou ciente"
+        : "Pode criar o lote (a API confirma horário comercial e frase de segurança).";
+    }
+  }
+
+  function clearMbJobPoll() {
+    if (mbPollTimer) {
+      clearInterval(mbPollTimer);
+      mbPollTimer = null;
+    }
+  }
+
+  function mbIsTerminalStatus(st) {
+    return st === "completed" || st === "canceled" || st === "failed";
+  }
+
+  function showJobCard() {
+    if (qs("mb_jobCard")) qs("mb_jobCard").style.display = "block";
+  }
+
+  function applyJobToUI(job) {
+    if (!job) return;
+    if (qs("mb_jobId")) qs("mb_jobId").textContent = job.id || "—";
+    if (qs("mb_jobStatus")) qs("mb_jobStatus").textContent = job.status || "—";
+    if (qs("mb_c_total")) qs("mb_c_total").textContent = String(job.totalQueued != null ? job.totalQueued : 0);
+    if (qs("mb_c_sent")) qs("mb_c_sent").textContent = String(job.totalSent != null ? job.totalSent : 0);
+    if (qs("mb_c_fail")) qs("mb_c_fail").textContent = String(job.totalFailed != null ? job.totalFailed : 0);
+    if (qs("mb_c_pend")) qs("mb_c_pend").textContent = String(job.pending != null ? job.pending : 0);
+    if (qs("mb_jobLogs")) {
+      var logs = job.logs || [];
+      qs("mb_jobLogs").textContent = logs.length ? JSON.stringify(logs, null, 2) : "(nenhum log ainda)";
+    }
+    if (mbIsTerminalStatus(job.status)) {
+      clearMbJobPoll();
+    }
+  }
+
+  function startMbJobPoll(jobId) {
+    if (!jobId) return;
+    clearMbJobPoll();
+    mbActiveJobId = jobId;
+    showJobCard();
+    var tick = function () {
+      if (!getToken() || !mbActiveJobId) {
+        clearMbJobPoll();
+        return;
+      }
+      api("/api/chatbot-admin/maintenance-broadcast/jobs/" + encodeURIComponent(mbActiveJobId))
+        .then(function (data) {
+          if (data && data.job) applyJobToUI(data.job);
+        })
+        .catch(function () {
+          /* ignore */
+        });
+    };
+    tick();
+    mbPollTimer = setInterval(tick, 2500);
+  }
+
   function maintenanceBroadcastPreview() {
-    setMbResult({ status: "preparando…" });
+    invalidateMbPreview();
+    setMbResult({ status: "prévia…" });
     var b = getBroadcastBase();
     api("/api/chatbot-admin/maintenance-broadcast/preview", { method: "POST", body: b })
       .then(function (data) {
         setMbResult(data);
+        if (data && data.ok) {
+          mbPreviewOk = true;
+        }
+        updateMbCreateState();
       })
       .catch(function (e) {
         setMbResult({ ok: false, error: e.message || String(e) });
+        updateMbCreateState();
       });
   }
 
   function maintenanceBroadcastTest() {
-    setMbResult({ status: "validando teste…" });
+    setMbResult({ status: "teste (1 envio)…" });
     var b = getBroadcastBase();
-    var t = getBroadcastTestExtras();
-    var body = Object.assign({}, b, t);
+    var body = Object.assign({}, b, { testPhone: (qs("mb_testPhone") && qs("mb_testPhone").value.trim()) || "" });
     api("/api/chatbot-admin/maintenance-broadcast/test", { method: "POST", body: body })
       .then(function (data) {
         setMbResult(data);
@@ -111,28 +190,48 @@
       });
   }
 
-  function maintenanceConfirmMass() {
-    if (
-      !window.confirm(
-        "Confirmação 1/2: o envio em massa REAL ainda NÃO está habilitado. Ninguém receberá mensagem. Continuar apenas com esta demonstração de confirmação dupla?"
-      )
-    ) {
+  function maintenanceCreateBatch() {
+    if (!mbPreviewOk) {
+      setMbResult({ error: "Faça a prévia primeiro (1 — Preparar envio)." });
       return;
     }
-    if (
-      !window.confirm(
-        "Confirmação 2/2: confirma que entendeu que nenhum disparo será executado e nenhum cliente será contatado?"
-      )
-    ) {
+    if (qs("mb_confirm").value.trim() !== MB_CONFIRM) {
+      setMbResult({ error: "Frase de confirmação incorreta." });
       return;
     }
-    setMbResult({
-      ok: true,
-      demonstration: true,
-      noBackendCall: true,
-      message:
-        "Nenhum envio em massa foi realizado. Não existe endpoint POST de massa; funcionalidade aguarda autorização, confirmação de produto, log, governança de taxa, pausa/cancelamento, validação de telefone e janela comercial.",
+    if (!qs("mb_ciente").checked) {
+      setMbResult({ error: "Marque Estou ciente." });
+      return;
+    }
+    if (!window.confirm("Confirma a criação de um lote de envio real, enfileirado (taxa do servidor)?")) return;
+    if (!window.confirm("Confirmação final: a mensagem será entregue aos números da BeesWeb conforme público selecionado.")) {
+      return;
+    }
+    var b = getBroadcastBase();
+    var body = Object.assign({}, b, {
+      confirmPhrase: MB_CONFIRM,
+      previewAccepted: true,
+      allowOutsideBusinessHours: !!(qs("mb_outside") && qs("mb_outside").checked),
     });
+    setMbResult({ status: "criando lote…" });
+    api("/api/chatbot-admin/maintenance-broadcast/create", { method: "POST", body: body })
+      .then(function (data) {
+        setMbResult(data);
+        if (data && data.jobId) {
+          startMbJobPoll(String(data.jobId));
+        }
+      })
+      .catch(function (e) {
+        setMbResult({ ok: false, error: e.message || String(e), data: (e && e.data) || undefined });
+      });
+  }
+
+  function mbAction(path) {
+    if (!mbActiveJobId) return;
+    return api(
+      "/api/chatbot-admin/maintenance-broadcast/jobs/" + encodeURIComponent(mbActiveJobId) + path,
+      { method: "POST", body: {} }
+    );
   }
 
   function switchTab(tabId) {
@@ -249,6 +348,8 @@
   }
 
   function logout() {
+    clearMbJobPoll();
+    mbActiveJobId = "";
     setToken("");
     qs("editorCard").style.display = "none";
     setSidebarVisible(false);
@@ -327,7 +428,57 @@
 
     if (qs("btnMbPreview")) qs("btnMbPreview").addEventListener("click", maintenanceBroadcastPreview);
     if (qs("btnMbTest")) qs("btnMbTest").addEventListener("click", maintenanceBroadcastTest);
-    if (qs("btnMbConfirm")) qs("btnMbConfirm").addEventListener("click", maintenanceConfirmMass);
+    if (qs("btnMbCreate")) qs("btnMbCreate").addEventListener("click", maintenanceCreateBatch);
+    if (qs("mb_confirm")) qs("mb_confirm").addEventListener("input", updateMbCreateState);
+    if (qs("mb_ciente")) qs("mb_ciente").addEventListener("change", updateMbCreateState);
+    if (qs("btnMbPause")) {
+      qs("btnMbPause").addEventListener("click", function () {
+        mbAction("/pause")
+          .then(function (d) {
+            if (d && d.job) applyJobToUI(d.job);
+            setMbResult(d);
+          })
+          .catch(function (e) {
+            setMbResult({ ok: false, error: e.message || String(e) });
+          });
+      });
+    }
+    if (qs("btnMbResume")) {
+      qs("btnMbResume").addEventListener("click", function () {
+        mbAction("/resume")
+          .then(function (d) {
+            if (d && d.job) applyJobToUI(d.job);
+            setMbResult(d);
+          })
+          .catch(function (e) {
+            setMbResult({ ok: false, error: e.message || String(e) });
+          });
+      });
+    }
+    if (qs("btnMbCancel")) {
+      qs("btnMbCancel").addEventListener("click", function () {
+        if (!window.confirm("Cancela o lote? Envios ainda enfileirados deixarão de processar (próximos ciclos).")) {
+          return;
+        }
+        mbAction("/cancel")
+          .then(function (d) {
+            if (d && d.job) applyJobToUI(d.job);
+            setMbResult(d);
+          })
+          .catch(function (e) {
+            setMbResult({ ok: false, error: e.message || String(e) });
+          });
+      });
+    }
+    var mbInvalEls = ["mb_title", "mb_message", "mb_return", "tenant"];
+    mbInvalEls.forEach(function (id) {
+      if (qs(id)) qs(id).addEventListener("input", invalidateMbPreview);
+      if (qs(id)) qs(id).addEventListener("change", invalidateMbPreview);
+    });
+    document.querySelectorAll('input[name="mb_audience"]').forEach(function (r) {
+      r.addEventListener("change", invalidateMbPreview);
+    });
+    updateMbCreateState();
 
     if (getToken()) {
       api("/api/chatbot-admin/me")

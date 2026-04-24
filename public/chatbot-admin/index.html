@@ -133,10 +133,10 @@
 
             <section class="tab-panel" id="tab-beesweb" role="tabpanel" aria-labelledby="tab-btn-beesweb" hidden>
               <h2 class="section-title">Disparo de manutenção para clientes BeesWeb</h2>
-              <p class="beesweb-lead">Área de preparação para avisos em lote. Nesta fase, <strong>ninguém recebe mensagem real</strong> — apenas pré-vias e simulação controlada via API.</p>
+              <p class="beesweb-lead">Aviso em lote: <strong>prévia e teste (1 WhatsApp)</strong>; criação de lote com fila, taxa e logs. O fluxo do atendimento DC NET (chat) não é alterado.</p>
               <div class="callout callout--warn" role="status">
-                <p class="callout-title">Atenção</p>
-                <p class="callout-text">O envio em massa ainda <strong>não</strong> está habilitado. O botão de confirmação exige passos extras e, quando liberado, exigirá confirmação dupla, registro de log, governança de taxa, pausa/cancelamento, validação de telefone e janela comercial. O backend atual não contém <code>POST</code> de massa real.</p>
+                <p class="callout-title">Segurança</p>
+                <p class="callout-text">Use <strong>prévia</strong> antes do lote. Criação exige frase exata + confirmação. Envio em massa ocorre no <strong>worker</strong> (não no request). Fora do horário comercial (Brasil) exige a flag explícita. Telefones em logs são mascarados.</p>
               </div>
 
               <label for="mb_title">Título da mensagem</label>
@@ -145,6 +145,7 @@
               <textarea id="mb_message" rows="4" placeholder="Texto exibido ao destinatário"></textarea>
               <label for="mb_return">Retorno previsto</label>
               <input id="mb_return" type="text" placeholder="Ex.: 24/04/2026 às 20h" autocomplete="off" />
+              <p class="muted">O tenant de envio acompanha o <strong>selector Tenant</strong> do topo (dcnet, etc.).</p>
 
               <fieldset class="fieldset-audience">
                 <legend>Público alvo</legend>
@@ -153,22 +154,57 @@
                 <label class="radio-line"><input type="radio" name="mb_audience" value="contract" /> Somente clientes com contrato ativo</label>
               </fieldset>
 
-              <div class="fieldset-test" aria-label="Modo teste">
-                <p class="legend-like">Modo teste</p>
-                <label class="checkbox-line"><input type="checkbox" id="mb_testMode" /> Enviar somente para número de teste (modo teste)</label>
-                <label for="mb_testPhone">Número de teste (E.164 ou DDD + número — usado somente com modo teste ativo na validação)</label>
-                <input id="mb_testPhone" type="text" inputmode="tel" placeholder="+55…" autocomplete="off" />
+              <div class="fieldset-test" aria-label="Teste unitário (WhatsApp real)">
+                <p class="legend-like">Teste (1 destinatário, não cria lote)</p>
+                <label for="mb_testPhone">Número de teste (E.164 ou DDD; validação: mín. 10 dígitos)</label>
+                <input id="mb_testPhone" type="text" inputmode="tel" placeholder="5511…" autocomplete="off" />
+                <p class="muted" style="margin-top:6px">Envia <em>um</em> <code>sendWhatsAppText</code> com o texto composto. Não dispara o lote.</p>
               </div>
 
               <div class="row beesweb-actions">
-                <button type="button" class="btn2" id="btnMbPreview">Preparar envio</button>
-                <button type="button" class="btn2" id="btnMbTest">Enviar teste</button>
-                <button type="button" class="btn btn--danger" id="btnMbConfirm">Confirmar envio em massa</button>
+                <button type="button" class="btn2" id="btnMbPreview">1 — Preparar envio (prévia)</button>
+                <button type="button" class="btn2" id="btnMbTest">2 — Enviar teste</button>
               </div>
-              <p class="muted beesweb-confirm-hint">O envio em massa <strong>real</strong> ainda não está habilitado. O botão abaixo só exige confirmação dupla e <strong>não chama o backend de massa</strong> (não implementado de propósito).</p>
+
+              <h3 class="subsection-title" style="margin-top:20px">Lote real (fila)</h3>
+              <p class="muted">Após a prévia OK, preencha e marque. Depois, confirme duas vezes no diálogo.</p>
+              <div class="fieldset-confirm">
+                <label for="mb_confirm">Digite a frase de confirmação exatamente: <code>CONFIRMAR ENVIO DC NET</code></label>
+                <input id="mb_confirm" type="text" autocomplete="off" spellcheck="false" />
+                <label class="checkbox-line" style="margin-top:10px">
+                  <input type="checkbox" id="mb_ciente" />
+                  Estou ciente: vou enfileirar <strong>envio real</strong> para a lista filtrada da BeesWeb; a taxa é controlada e pode levar minutos/horas.
+                </label>
+                <label class="checkbox-line">
+                  <input type="checkbox" id="mb_outside" />
+                  Autorizar criação do lote fora do horário comercial (São Paulo), se a API estiver nessa condição.
+                </label>
+                <div class="row" style="margin-top:10px">
+                  <button type="button" class="btn btn--danger" id="btnMbCreate" disabled>3 — Criar lote real</button>
+                </div>
+                <p class="muted mb-create-hint" id="mb_createHint">Pré-requisitos: prévia realizada, frase correta, checkbox &quot;Estou ciente&quot;.</p>
+              </div>
+
+              <div class="mb-job-card" id="mb_jobCard" style="display:none" aria-live="polite">
+                <h3 class="subsection-title">Lote ativo / último</h3>
+                <p class="mb-job-meta"><span id="mb_jobStatus">—</span> — ID <code id="mb_jobId">—</code></p>
+                <ul class="mb-job-counters">
+                  <li>Total: <strong id="mb_c_total">0</strong></li>
+                  <li>Enviados: <strong id="mb_c_sent">0</strong></li>
+                  <li>Falhas: <strong id="mb_c_fail">0</strong></li>
+                  <li>Pendentes (est.): <strong id="mb_c_pend">0</strong></li>
+                </ul>
+                <div class="row beesweb-actions" style="margin-top:6px">
+                  <button type="button" class="btn2" id="btnMbPause">Pausar</button>
+                  <button type="button" class="btn2" id="btnMbResume">Retomar</button>
+                  <button type="button" class="btn2" id="btnMbCancel" style="background:#fecaca">Cancelar</button>
+                </div>
+                <p class="result-block-label" style="margin-top:10px">Últimos logs (mascarado)</p>
+                <pre id="mb_jobLogs" class="result-pre result-pre--sub"></pre>
+              </div>
 
               <div class="result-block">
-                <p class="result-block-label">Resultado da simulação / API</p>
+                <p class="result-block-label">Resposta de prévia / teste / criação</p>
                 <pre id="mb_result" class="result-pre" aria-live="polite">(Nenhuma requisição ainda.)</pre>
               </div>
             </section>

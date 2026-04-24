@@ -1,12 +1,20 @@
 "use strict";
 
 const express = require("express");
+const mongoose = require("mongoose");
 const requireAdminAuth = require("../middlewares/requireAdmin");
 const {
   getConfigForTenant,
   patchConfigForTenant,
   MERGE_KEYS,
 } = require("../services/chatbotContentConfigService");
+const {
+  previewBroadcast,
+  sendTestBroadcast,
+  createBroadcastJob,
+  getJobById,
+  setJobStatus,
+} = require("../services/maintenanceBroadcastService");
 
 const router = express.Router();
 
@@ -77,130 +85,133 @@ router.patch("/chatbot-admin/config", requireAdminAuth, async (req, res) => {
   }
 });
 
-/* --- Manutenção em massa (BeesWeb) — apenas preview / teste; sem envio real (fase 1) --- */
-
-const AUDIENCE_LABELS = {
-  all: "Todos os clientes",
-  active: "Somente clientes ativos",
-  contract: "Somente clientes com contrato ativo",
-};
-
-function normalizeBroadcastBody(body) {
-  if (!body || typeof body !== "object") {
-    return { error: "invalid_body" };
-  }
-  const title = String(body.title != null ? body.title : "").trim();
-  const message = String(body.message != null ? body.message : "").trim();
-  const expectedReturn = String(body.expectedReturn != null ? body.expectedReturn : "").trim();
-  const rawAudience = String(body.audience || "all")
-    .trim()
-    .toLowerCase();
-  if (!Object.prototype.hasOwnProperty.call(AUDIENCE_LABELS, rawAudience)) {
-    return { error: "invalid_audience" };
-  }
-  return {
-    title,
-    message,
-    expectedReturn,
-    audience: rawAudience,
-  };
-}
-
-function buildComposedMessage({ title, message, expectedReturn }) {
-  const parts = [];
-  if (title) parts.push(title);
-  if (message) parts.push(message);
-  if (expectedReturn) parts.push("Retorno previsto: " + expectedReturn);
-  return parts.length ? parts.join("\n\n") : "(mensagem vazia)";
-}
+/* --- Manutenção em massa BeesWeb (fila + worker) --- */
 
 /**
  * POST /api/chatbot-admin/maintenance-broadcast/preview
- * Monta prévia, audiência e aviso. Não envia mensagem; contagem de clientes ainda é placeholder (TODO).
  */
-router.post(
-  "/chatbot-admin/maintenance-broadcast/preview",
-  requireAdminAuth,
-  (req, res) => {
-    const n = normalizeBroadcastBody(req.body);
-    if (n.error) {
-      return res.status(400).json({ ok: false, error: n.error });
-    }
-    if (!n.title && !n.message) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "title_or_message_required" });
-    }
+router.post("/chatbot-admin/maintenance-broadcast/preview", requireAdminAuth, async (req, res) => {
+  try {
     const email = (req.admin && req.admin.email) || "";
     console.log("[chatbot-admin/maintenance-broadcast/preview]", {
       at: new Date().toISOString(),
       admin: email,
-      audience: n.audience,
     });
-    res.json({
-      ok: true,
-      estimatedCount: null,
-      estimatedCountNote:
-        "Estimativa de clientes ainda não integrada à BeesWeb (fase de preparação; TODO seguro).",
-      composedMessage: buildComposedMessage(n),
-      audience: n.audience,
-      audienceLabel: AUDIENCE_LABELS[n.audience],
-      warning: "envio real ainda não habilitado",
-    });
+    const r = await previewBroadcast(req.body);
+    if (r.ok === false) {
+      const code = r.error === "beesweb_not_configured" ? 503 : 400;
+      return res.status(code).json({ ok: false, error: r.error });
+    }
+    res.json(r);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
-);
+});
 
 /**
  * POST /api/chatbot-admin/maintenance-broadcast/test
- * Valida intenção de teste. Não envia WhatsApp nem liga à BeesWeb nesta fase.
- * body: + testMode (bool), testPhone (string) quando testMode
+ * Envia uma única mensagem real para testPhone (não cria lote).
  */
+router.post("/chatbot-admin/maintenance-broadcast/test", requireAdminAuth, async (req, res) => {
+  try {
+    const r = await sendTestBroadcast(req.body, (req.admin && req.admin.email) || "");
+    if (r.err) {
+      return res.status(r.err).json(r.body);
+    }
+    res.json(r.out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+/**
+ * POST /api/chatbot-admin/maintenance-broadcast/create
+ * Cria lote enfileirado (envio fora do request).
+ */
+router.post("/chatbot-admin/maintenance-broadcast/create", requireAdminAuth, async (req, res) => {
+  try {
+    const r = await createBroadcastJob(req.body, req.admin);
+    if (r.err) {
+      return res.status(r.err).json(r.body);
+    }
+    res.json(r.out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+/**
+ * GET /api/chatbot-admin/maintenance-broadcast/jobs/:id
+ */
+router.get("/chatbot-admin/maintenance-broadcast/jobs/:id", requireAdminAuth, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+    }
+    const r = await getJobById(req.params.id);
+    if (r.err) {
+      return res.status(r.err).json(r.body);
+    }
+    res.json({ ok: true, job: r.job });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 router.post(
-  "/chatbot-admin/maintenance-broadcast/test",
+  "/chatbot-admin/maintenance-broadcast/jobs/:id/pause",
   requireAdminAuth,
-  (req, res) => {
-    const n = normalizeBroadcastBody(req.body);
-    if (n.error) {
-      return res.status(400).json({ ok: false, error: n.error });
-    }
-    if (!n.title && !n.message) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "title_or_message_required" });
-    }
-    const testMode = req.body && req.body.testMode === true;
-    const testPhone = String(
-      (req.body && req.body.testPhone) != null ? req.body.testPhone : ""
-    ).trim();
-    if (testMode) {
-      const digits = testPhone.replace(/\D/g, "");
-      if (digits.length < 10) {
-        return res.status(400).json({
-          ok: false,
-          error: "test_phone_invalid",
-        });
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ ok: false, error: "invalid_id" });
       }
+      const r = await setJobStatus(req.params.id, "paused");
+      if (r.err) {
+        return res.status(r.err).json(r.body);
+      }
+      res.json(r.out);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
-    const email = (req.admin && req.admin.email) || "";
-    console.log("[chatbot-admin/maintenance-broadcast/test]", {
-      at: new Date().toISOString(),
-      admin: email,
-      audience: n.audience,
-      testMode,
-      dryRun: true,
-    });
-    res.json({
-      ok: true,
-      dryRun: true,
-      simulated: true,
-      message:
-        "Nenhum WhatsApp foi enviado. O disparo de teste ainda não está conectado ao provedor; esta resposta confirma apenas a validação da requisição.",
-      wouldSendTo: testMode && testPhone ? testPhone : null,
-      composedMessage: buildComposedMessage(n),
-      audience: n.audience,
-      audienceLabel: AUDIENCE_LABELS[n.audience],
-      warning: "envio real ainda não habilitado",
-    });
+  }
+);
+
+router.post(
+  "/chatbot-admin/maintenance-broadcast/jobs/:id/cancel",
+  requireAdminAuth,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ ok: false, error: "invalid_id" });
+      }
+      const r = await setJobStatus(req.params.id, "canceled");
+      if (r.err) {
+        return res.status(r.err).json(r.body);
+      }
+      res.json(r.out);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
+  }
+);
+
+router.post(
+  "/chatbot-admin/maintenance-broadcast/jobs/:id/resume",
+  requireAdminAuth,
+  async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ ok: false, error: "invalid_id" });
+      }
+      const r = await setJobStatus(req.params.id, "resumed");
+      if (r.err) {
+        return res.status(r.err).json(r.body);
+      }
+      res.json(r.out);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
+    }
   }
 );
 
