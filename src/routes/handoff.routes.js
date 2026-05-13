@@ -37,7 +37,7 @@ router.post("/handoff", async (req, res) => {
           lastIntent: "handoff",
         },
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
   } catch (e) {
     console.log("⚠️ handoff Lead update failed:", e?.message);

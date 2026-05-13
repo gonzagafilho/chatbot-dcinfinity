@@ -31,3 +31,22 @@ _old/
 *.bak
 *.tar.gz
 backup-estrutura-*
+
+# runtime uploads / user files
+public/uploads/
+data/*.xlsx
+
+# cleanup/review folders
+_cleanup_review_*/
+
+# temporary scripts
+fix-*.js
+
+# local assets generated outside source control
+public/assets/*
+!public/assets/.gitkeep
+
+# editor/cache
+.cache/
+tmp/
+*.tmp

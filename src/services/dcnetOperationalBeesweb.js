@@ -211,11 +211,22 @@ function buildChargeBackedBoletoPremiumText(charge) {
     lines.push(`📅 Vencimento: ${String(charge.due_date).trim()}`);
   }
   lines.push("");
-  const link = String(charge?.link || "").trim();
-  if (link) {
-    lines.push("🔗 Boleto:");
-    lines.push(link);
-  }
+  const link =
+  String(charge?.link || "").trim() ||
+  String(charge?.boletoUrl || "").trim() ||
+  String(charge?.pdf_url || "").trim();
+
+if (link) {
+  lines.push("🔗 Boleto:");
+  lines.push(link);
+} else if (charge?.linha_digitavel || charge?.digitable_line) {
+  const linha =
+    charge?.linha_digitavel ||
+    charge?.digitable_line;
+
+  lines.push("📄 Linha digitável:");
+  lines.push(linha);
+}
   lines.push("");
   lines.push("✅ Assim que o pagamento for identificado, seu acesso será liberado automaticamente.");
   lines.push("");
@@ -453,7 +464,16 @@ async function tryResolveDcnetBeeswebOperationalReply(ctx) {
         falarComAtendenteCta: true,
       };
     }
-    if (!String(pack.charge?.link || "").trim()) {
+    const link =
+  String(pack.charge?.link || "").trim() ||
+  String(pack.charge?.boletoUrl || "").trim() ||
+  String(pack.charge?.pdf_url || "").trim();
+
+const linha =
+  pack.charge?.linha_digitavel ||
+  pack.charge?.digitable_line;
+
+if (!link && !linha) {
       logDcnetRoute(ctx, "financeiro", "humano", { branch: "finance_boleto_requested_no_link" });
       return {
         reply: MENSAGEM_ESCALA_FINANCEIRO,
@@ -475,7 +495,7 @@ async function tryResolveDcnetBeeswebOperationalReply(ctx) {
         lastFinancialIntentAt: new Date(),
       },
       boletoInteractive: {
-        link: String(pack.charge.link || "").trim(),
+        link: link,
         ctaBody: "Toque no botão abaixo para abrir seu boleto.",
         buttonText: "Abrir boleto",
       },
@@ -592,8 +612,19 @@ async function tryResolveDcnetBeeswebOperationalReply(ctx) {
           falarComAtendenteCta: true,
         };
       }
-      if (!String(pack.charge?.link || "").trim()) {
-        logDcnetRoute(ctx, "financeiro", "humano", { branch: "finance_menu_boleto_no_link" });
+      const link =
+  String(pack.charge?.link || "").trim() ||
+  String(pack.charge?.boletoUrl || "").trim() ||
+  String(pack.charge?.pdf_url || "").trim() ||
+  String(pack.extracted?.boletoUrl || "").trim();
+
+const linha =
+  pack.charge?.linha_digitavel ||
+  pack.charge?.digitable_line ||
+  pack.extracted?.linhaDigitavel;
+
+if (!link && !linha) {
+  logDcnetRoute(ctx, "financeiro", "humano", { branch: "finance_menu_boleto_no_link" });
         return {
           reply:
             "Não encontrei link de boleto disponível no seu cadastro neste momento.\n\n" +
@@ -619,7 +650,7 @@ async function tryResolveDcnetBeeswebOperationalReply(ctx) {
           financeMenuTwoOptionsOnly: false,
         },
         boletoInteractive: {
-          link: String(pack.charge.link || "").trim(),
+          link: link,
           ctaBody: "Toque no botão abaixo para abrir seu boleto.",
           buttonText: "Abrir boleto",
         },

@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Central de Controle — Chatbot DC NET | DC Infinity</title>
+  <meta name="theme-color" content="#16a34a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Painel Inteligente DC NET | DC Infinity</title>
+  <link rel="icon" type="image/png" href="/chatbot-admin/icons/favicon.png" />
+  <link rel="apple-touch-icon" href="/chatbot-admin/icons/icon-192.png" />
+  <link rel="manifest" href="/chatbot-admin/manifest.webmanifest" type="application/manifest+json" />
   <link rel="stylesheet" href="/chatbot-admin/styles.css" />
 </head>
 <body>
@@ -11,27 +16,37 @@
     <aside class="sidebar" id="sidebar" aria-label="Navegação do painel" hidden>
       <div class="sidebar-brand">
         <span class="sidebar-brand-title">DC Infinity</span>
-        <span class="sidebar-brand-sub">Chatbot — conteúdo</span>
+        <span class="sidebar-brand-sub">Comunicação com clientes</span>
       </div>
       <nav class="sidebar-nav" role="tablist" aria-label="Seções">
-        <button type="button" class="sidebar-link is-active" data-tab="dashboard" role="tab" aria-selected="true" aria-controls="tab-dashboard" id="tab-btn-dashboard">Dashboard</button>
+        <button type="button" class="sidebar-link is-active" data-tab="dashboard" role="tab" aria-selected="true" aria-controls="tab-dashboard" id="tab-btn-dashboard">Início</button>
         <button type="button" class="sidebar-link" data-tab="campaigns" role="tab" aria-selected="false" aria-controls="tab-campaigns" id="tab-btn-campaigns">Campanhas</button>
         <button type="button" class="sidebar-link" data-tab="messages" role="tab" aria-selected="false" aria-controls="tab-messages" id="tab-btn-messages">Mensagens</button>
         <button type="button" class="sidebar-link" data-tab="maintenance" role="tab" aria-selected="false" aria-controls="tab-maintenance" id="tab-btn-maintenance">Manutenção</button>
-        <button type="button" class="sidebar-link" data-tab="beesweb" role="tab" aria-selected="false" aria-controls="tab-beesweb" id="tab-btn-beesweb">Clientes BeesWeb</button>
+        <button type="button" class="sidebar-link" data-tab="beesweb" role="tab" aria-selected="false" aria-controls="tab-beesweb" id="tab-btn-beesweb">Envio em massa</button>
       </nav>
     </aside>
 
     <div class="main-area">
+      <button
+        id="mobileMenuBtn"
+        class="mobile-menu-btn"
+        type="button"
+        aria-label="Abrir menu"
+        aria-controls="sidebar"
+        aria-expanded="false"
+      >
+        ☰
+      </button>
       <div class="main-inner">
-        <header class="page-header">
-          <h1>Central de Controle do Chatbot DC NET</h1>
-          <p class="sub">Gerencie campanhas, mensagens operacionais e avisos de manutenção em tempo real, sem alterar o fluxo aprovado do atendimento. Painel separado do de <strong>atendimento</strong> (<code>/admin</code>); autenticação: mesma conta admin (JWT).</p>
+        <header class="page-header page-header--hero">
+          <h1>Painel Inteligente DC NET</h1>
+          <p class="sub">Envie avisos, campanhas e comunicados para seus clientes de forma rápida, segura e profissional.</p>
         </header>
 
         <div class="card" id="loginCard">
-          <h2>Login</h2>
-          <p class="muted">Usa <code>POST /api/admin/login</code> (mesmo backend do admin de atendimento).</p>
+          <h2>Entrar</h2>
+          <p class="muted">Acesso com a mesma conta de administrador usada no painel de atendimento.</p>
           <div class="row">
             <div style="flex:1;min-width:200px">
               <label for="email">E-mail</label>
@@ -49,19 +64,21 @@
         </div>
 
         <div class="card editor-card" id="editorCard" style="display:none">
-          <div class="editor-toolbar">
+          <div class="panel-block panel-block--config">
+            <h3 class="panel-block__kicker">Configuração</h3>
+            <div class="editor-toolbar">
             <div class="editor-toolbar-left">
-              <h2 class="editor-toolbar-title">Configuração</h2>
-              <p class="muted editor-toolbar-hint">Tenant, carregar e encerrar sessão.</p>
+              <h2 class="editor-toolbar-title">Configuração da empresa</h2>
+              <p class="muted editor-toolbar-hint">Selecione a empresa e carregue as configurações para iniciar.</p>
             </div>
             <div class="editor-toolbar-actions">
-              <button type="button" class="btn2" id="btnLogout">Sair</button>
+              <button type="button" class="btn2" id="btnLogout">Encerrar sessão</button>
             </div>
-          </div>
+            </div>
 
-          <div class="tenant-bar">
+            <div class="tenant-bar">
             <div class="tenant-bar-field">
-              <label for="tenant">Tenant</label>
+              <label for="tenant">Empresa (tenant)</label>
               <select id="tenant">
                 <option value="dcnet">dcnet</option>
                 <option value="dcsolar">dcsolar</option>
@@ -69,15 +86,16 @@
                 <option value="default">default</option>
               </select>
             </div>
-            <button type="button" class="btn2" id="btnLoad">Carregar config</button>
+            <button type="button" class="btn2" id="btnLoad">Carregar sistema</button>
+            </div>
           </div>
 
           <div class="tab-panels">
             <section class="tab-panel is-active" id="tab-dashboard" role="tabpanel" aria-labelledby="tab-btn-dashboard">
-              <h2 class="section-title">Dashboard</h2>
+              <h2 class="section-title">Visão geral</h2>
               <div class="pro-card pro-card--status">
-                <h3 class="pro-card-title">Chatbot em produção</h3>
-                <p class="pro-card-text">O fluxo de atendimento da DC NET está ativo e protegido. Altere apenas conteúdos, campanhas e comunicados.</p>
+                <h3 class="pro-card-title">Seu atendimento está ativo</h3>
+                <p class="pro-card-text">O robô de atendimento continua no ar. Aqui você ajusta textos, campanhas e avisos — sem alterar o atendimento automático.</p>
                 <div class="status-card status-card--inset">
                   <span class="status-dot" id="dashboardDot" aria-hidden="true"></span>
                   <div>
@@ -92,10 +110,45 @@
                   <p class="pro-card-text">Atualize imagens e textos sazonais para manter a comunicação da empresa sempre profissional.</p>
                 </div>
                 <div class="pro-card pro-card--feat">
-                  <h3 class="pro-card-title">Comunicados de manutenção</h3>
-                  <p class="pro-card-text">Prepare avisos rápidos para informar clientes sobre instabilidade, manutenção programada ou retorno previsto.</p>
+                  <h3 class="pro-card-title">Avisos e comunicados</h3>
+                  <p class="pro-card-text">Informe clientes sobre manutenção, instabilidade ou prazo de normalização, com linguagem alinhada à sua marca.</p>
                 </div>
               </div>
+
+              <h2 class="section-title dash-broadcast-title">Indicadores de envio</h2>
+              <p class="muted dash-broadcast-sub">Acompanhe resultados e histórico dos envios. Os números abrangem <strong>todas</strong> as campanhas; a tabela mostra as 20 mais recentes.</p>
+              <div class="pro-grid dash-metrics">
+                <div class="pro-card pro-card--feat pro-card--metric">
+                  <strong>Total de campanhas</strong>
+                  <div class="metric-value" id="d_totalJobs">-</div>
+                </div>
+                <div class="pro-card pro-card--feat pro-card--metric">
+                  <strong>Mensagens entregues</strong>
+                  <div class="metric-value" id="d_totalSent">-</div>
+                </div>
+                <div class="pro-card pro-card--feat pro-card--metric">
+                  <strong>Não entregues / erro</strong>
+                  <div class="metric-value" id="d_totalFailed">-</div>
+                </div>
+                <div class="pro-card pro-card--feat pro-card--metric">
+                  <strong>Taxa de sucesso</strong>
+                  <div class="metric-value" id="d_successRate">-</div>
+                </div>
+              </div>
+              <div class="history-header">
+                  <h3 class="subsection-title">Histórico de campanhas</h3>
+
+                  <div class="history-filters">
+                    <button class="history-filter active" data-history-filter="today">Hoje</button>
+                    <button class="history-filter" data-history-filter="7d">7 dias</button>
+                    <button class="history-filter" data-history-filter="30d">30 dias</button>
+                    <button class="history-filter" data-history-filter="all">Total</button>
+                  </div>
+                </div>
+              <div class="d-history" id="d_history" aria-label="Tabela de campanhas">Carregue o painel após login…</div>
+              <h3 class="subsection-title d-jobs-h3">Detalhamento (resumo)</h3>
+              <p class="muted" style="margin:0 0 8px">Dados técnicos resumidos, sem exibir listas de telefone.</p>
+              <pre id="d_jobs" class="result-pre">(Aguardando leitura.)</pre>
             </section>
 
             <section class="tab-panel" id="tab-campaigns" role="tabpanel" aria-labelledby="tab-btn-campaigns" hidden>
@@ -108,7 +161,167 @@
               <label>Natal</label><input id="c_natalImage" type="url" /><img class="preview" data-for="c_natalImage" alt="" />
               <label>Ano novo</label><input id="c_anoNovoImage" type="url" /><img class="preview" data-for="c_anoNovoImage" alt="" />
 
-              <h3 class="subsection-title" style="margin-top:20px">Textos curtos (opcional)</h3>
+              <div class="campaign-upload-card">
+                <h3 class="subsection-title campaign-upload-kicker">Enviar panfleto da campanha</h3>
+                <p class="campaign-upload-lead">Escolha uma imagem do seu computador. O sistema irá gerar o link automaticamente para uso nas campanhas.</p>
+                <div class="campaign-upload-controls">
+                  <input type="file" id="campaignImageFile" accept="image/png,image/jpeg,image/webp" />
+                  <button type="button" class="btn campaign-upload-btn" id="btnUploadCampaignImage">Enviar imagem</button>
+                </div>
+                <div class="campaign-preview-wrap">
+                  <img id="campaignImagePreview" class="campaign-image-preview" hidden alt="Prévia do panfleto" />
+                </div>
+                <label for="campaignImageGeneratedUrl">URL gerada (HTTPS)</label>
+                <div class="campaign-url-row">
+                  <input
+                    type="url"
+                    id="campaignImageGeneratedUrl"
+                    class="campaign-url-input"
+                    readonly
+                    placeholder="Após o envio, o link aparece aqui"
+                    autocomplete="off"
+                  />
+                  <button type="button" class="btn2" id="btnCopyCampaignImageUrl">Copiar link</button>
+                </div>
+                <p class="campaign-upload-message" id="campaignImageUploadMessage" role="status" aria-live="polite"></p>
+              </div>
+
+              <div class="digital-flyer-card">
+                <h3 class="subsection-title">Panfleto Digital</h3>
+                <p class="muted" style="margin:0 0 14px">Planos e links prontos para o WhatsApp.</p>
+                <div class="digital-flyer-grid">
+                  <div class="digital-flyer-plan">
+                    <p class="digital-flyer-plan-title">350 Mega — R$78,99</p>
+                    <label for="flyerLink350">Link</label>
+                    <input type="text" id="flyerLink350" readonly autocomplete="off" />
+                    <div class="digital-flyer-actions">
+                      <button type="button" class="btn2" id="btnCopyFlyer350">Copiar</button>
+                      <button type="button" class="btn" id="btnOpenFlyer350">Abrir</button>
+                    </div>
+                  </div>
+                  <div class="digital-flyer-plan">
+                    <p class="digital-flyer-plan-title">400 Mega — R$88,99</p>
+                    <label for="flyerLink400">Link</label>
+                    <input type="text" id="flyerLink400" readonly autocomplete="off" />
+                    <div class="digital-flyer-actions">
+                      <button type="button" class="btn2" id="btnCopyFlyer400">Copiar</button>
+                      <button type="button" class="btn" id="btnOpenFlyer400">Abrir</button>
+                    </div>
+                  </div>
+                  <div class="digital-flyer-plan">
+                    <p class="digital-flyer-plan-title">500 Mega — R$98,99</p>
+                    <label for="flyerLink500">Link</label>
+                    <input type="text" id="flyerLink500" readonly autocomplete="off" />
+                    <div class="digital-flyer-actions">
+                      <button type="button" class="btn2" id="btnCopyFlyer500">Copiar</button>
+                      <button type="button" class="btn" id="btnOpenFlyer500">Abrir</button>
+                    </div>
+                  </div>
+                  <div class="digital-flyer-plan">
+                    <p class="digital-flyer-plan-title">600 Mega — R$119,99</p>
+                    <label for="flyerLink600">Link</label>
+                    <input type="text" id="flyerLink600" readonly autocomplete="off" />
+                    <div class="digital-flyer-actions">
+                      <button type="button" class="btn2" id="btnCopyFlyer600">Copiar</button>
+                      <button type="button" class="btn" id="btnOpenFlyer600">Abrir</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="digital-flyer-caption">
+                  <label for="flyerCaptionText">Legenda (copiar tudo)</label>
+                  <textarea id="flyerCaptionText" rows="8" placeholder="Preenchido automaticamente após carregar o painel…"></textarea>
+                  <div class="digital-flyer-actions" style="margin-top: 10px">
+                    <button type="button" class="btn2" id="btnCopyFlyerCaption">Copiar legenda</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="coverage-map-card" id="coverageGpsBlock">
+                <h3 class="subsection-title">Cobertura GPS</h3>
+                <p class="muted" style="margin:0 0 12px">
+                  Cadastre círculos de cobertura. Clique no mapa para definir o centro, use a loja de referência ou a sua
+                  posição. Use a lista abaixo para editar ou desativar.
+                </p>
+                <p class="muted" id="coverageMapFallback" hidden>
+                  O mapa não pôde carregar (rede/cdn). Use latitude, longitude e raio manualmente.
+                </p>
+                <div class="coverage-map-actions" id="coverageMapActions">
+                  <button type="button" class="btn2" id="btnUseMyLocation">Usar minha localização</button>
+                  <button type="button" class="btn2" id="btnCenterDcnetStore">Centralizar na loja DC NET</button>
+                </div>
+                <p class="coverage-map-message" id="coverageMapMessage" role="status" aria-live="polite"></p>
+                <div
+                  class="coverage-map"
+                  id="coverageMap"
+                  role="img"
+                  aria-label="Mapa: clique para posicionar o ponto de cobertura"
+                ></div>
+                <form class="coverage-form-grid" id="coverageForm">
+                  <input type="hidden" id="coverageEditId" value="" />
+                  <div>
+                    <label for="coverageName">Nome da área</label>
+                    <input type="text" id="coverageName" autocomplete="off" placeholder="Ex.: Sol Nascente" />
+                  </div>
+                  <div>
+                    <label for="coverageLat">Latitude</label>
+                    <input type="text" id="coverageLat" inputmode="decimal" placeholder="-15.604" autocomplete="off" />
+                  </div>
+                  <div>
+                    <label for="coverageLng">Longitude</label>
+                    <input type="text" id="coverageLng" inputmode="decimal" placeholder="-47.680" autocomplete="off" />
+                  </div>
+                  <div>
+                    <label for="coverageRadius">Raio (metros)</label>
+                    <input type="number" id="coverageRadius" min="1" step="1" value="2500" />
+                  </div>
+                  <div>
+                    <label for="coverageNotes">Observação</label>
+                    <input type="text" id="coverageNotes" autocomplete="off" />
+                  </div>
+                  <div>
+                    <label for="coverageActive" class="coverage-active-label"
+                      ><input type="checkbox" id="coverageActive" checked /> Ativo</label
+                    >
+                  </div>
+                </form>
+                <div class="digital-flyer-actions" style="margin-top: 10px">
+                  <button type="button" class="btn" id="btnSaveCoverageArea">Salvar área</button>
+                  <button type="button" class="btn2" id="btnReloadCoverageAreas">Atualizar lista</button>
+                </div>
+                <h4 class="subsection-title" style="margin: 16px 0 8px">Áreas cadastradas</h4>
+                <div class="coverage-areas-list" id="coverageAreasList" aria-live="polite">Carregue a lista após o login…</div>
+              </div>
+
+              <h3 class="subsection-title" style="margin-top:20px">
+              <div class="automation-live-controls">
+                <h3 class="subsection-title">Automação LIVE</h3>
+
+                <label class="switch-row">
+                  <span>Billing D-3 LIVE</span>
+                  <input type="checkbox" id="billingLiveToggle">
+                </label>
+
+                <label class="switch-row">
+                  <span>Campanhas sazonais LIVE</span>
+                  <input type="checkbox" id="seasonalLiveToggle">
+                </label>
+
+                <label>
+                  Máx campanhas por execução
+                  <input type="number" id="campaignMaxInput" min="1" max="500" value="10">
+                </label>
+
+                <label>
+                  Máx boletos por execução
+                  <input type="number" id="billingMaxInput" min="1" max="500" value="5">
+                </label>
+
+                <button type="button" class="btn2" id="btnSaveAutomationLive">
+                  Salvar automações
+                </button>
+              </div>
+
+Textos curtos (opcional)</h3>
               <label>Aniversário (legenda; vazio = mensagem automática atual)</label>
               <textarea id="t_aniversarioText"></textarea>
               <label class="muted"><input type="checkbox" id="a_aniversario" checked /> Aniversário ativo</label>
@@ -132,62 +345,81 @@
             </section>
 
             <section class="tab-panel" id="tab-beesweb" role="tabpanel" aria-labelledby="tab-btn-beesweb" hidden>
-              <h2 class="section-title">Disparo de manutenção para clientes BeesWeb</h2>
-              <p class="beesweb-lead">Aviso em lote: <strong>prévia e teste (1 WhatsApp)</strong>; criação de lote com fila, taxa e logs. O fluxo do atendimento DC NET (chat) não é alterado.</p>
-              <div class="callout callout--warn" role="status">
-                <p class="callout-title">Segurança</p>
-                <p class="callout-text">Use <strong>prévia</strong> antes do lote. Criação exige frase exata + confirmação. Envio em massa ocorre no <strong>worker</strong> (não no request). Fora do horário comercial (Brasil) exige a flag explícita. Telefones em logs são mascarados.</p>
+              <h2 class="section-title">Envio de mensagens para clientes</h2>
+              <p class="beesweb-lead">Comunique seus clientes com avisos importantes, promoções ou informações de atendimento.</p>
+              <div class="callout callout--secure" role="status">
+                <p class="callout-title">Segurança e controle</p>
+                <ul class="callout-list callout-text">
+                  <li>✔ Sempre teste antes de enviar</li>
+                  <li>✔ Confirmação obrigatória</li>
+                  <li>✔ Sistema protegido contra envios acidentais</li>
+                  <li>✔ Dados dos clientes protegidos</li>
+                </ul>
+                <p class="callout-foot muted" style="margin:10px 0 0">O envio em lote acompanha a <strong>empresa</strong> selecionada no topo. Telefones aparecem ofuscados no histórico.</p>
               </div>
 
-              <label for="mb_title">Título da mensagem</label>
-              <input id="mb_title" type="text" placeholder="Ex.: Manutenção programada" autocomplete="off" />
-              <label for="mb_message">Mensagem principal</label>
-              <textarea id="mb_message" rows="4" placeholder="Texto exibido ao destinatário"></textarea>
-              <label for="mb_return">Retorno previsto</label>
-              <input id="mb_return" type="text" placeholder="Ex.: 24/04/2026 às 20h" autocomplete="off" />
-              <p class="muted">O tenant de envio acompanha o <strong>selector Tenant</strong> do topo (dcnet, etc.).</p>
-
-              <fieldset class="fieldset-audience">
-                <legend>Público alvo</legend>
-                <label class="radio-line"><input type="radio" name="mb_audience" value="all" checked /> Todos os clientes</label>
-                <label class="radio-line"><input type="radio" name="mb_audience" value="active" /> Somente clientes ativos</label>
-                <label class="radio-line"><input type="radio" name="mb_audience" value="contract" /> Somente clientes com contrato ativo</label>
-              </fieldset>
-
-              <div class="fieldset-test" aria-label="Teste unitário (WhatsApp real)">
-                <p class="legend-like">Teste (1 destinatário, não cria lote)</p>
-                <label for="mb_testPhone">Número de teste (E.164 ou DDD; validação: mín. 10 dígitos)</label>
-                <input id="mb_testPhone" type="text" inputmode="tel" placeholder="5511…" autocomplete="off" />
-                <p class="muted" style="margin-top:6px">Envia <em>um</em> <code>sendWhatsAppText</code> com o texto composto. Não dispara o lote.</p>
+              <div class="panel-block">
+                <h3 class="panel-block__kicker">Mensagem</h3>
+                <label for="mb_title">Título da mensagem (ex: Manutenção programada)</label>
+                <input id="mb_title" type="text" placeholder="Ex.: Manutenção programada" autocomplete="off" />
+                <label for="mb_message">Mensagem que o cliente irá receber</label>
+                <textarea id="mb_message" rows="4" placeholder="Digite a mensagem que será lida no WhatsApp."></textarea>
+                <label for="mb_return">Previsão de normalização (opcional)</label>
+                <input id="mb_return" type="text" placeholder="Ex.: 24/04/2026 às 20h" autocomplete="off" />
+                <label for="mb_imageUrl">URL do panfleto (imagem opcional)</label>
+                <input type="text" id="mb_imageUrl" placeholder="https://..." autocomplete="off" />
               </div>
 
-              <div class="row beesweb-actions">
-                <button type="button" class="btn2" id="btnMbPreview">1 — Preparar envio (prévia)</button>
-                <button type="button" class="btn2" id="btnMbTest">2 — Enviar teste</button>
+              <div class="panel-block">
+                <h3 class="panel-block__kicker">Público</h3>
+                <fieldset class="fieldset-audience">
+                  <legend>Para quem deseja enviar?</legend>
+                  <label class="radio-line"><input type="radio" name="mb_audience" value="all" checked /> Todos os clientes</label>
+                  <label class="radio-line"><input type="radio" name="mb_audience" value="active" /> Apenas clientes ativos</label>
+                  <label class="radio-line"><input type="radio" name="mb_audience" value="contract" /> Clientes com serviço ativo</label>
+                </fieldset>
               </div>
 
-              <h3 class="subsection-title" style="margin-top:20px">Lote real (fila)</h3>
-              <p class="muted">Após a prévia OK, preencha e marque. Depois, confirme duas vezes no diálogo.</p>
-              <div class="fieldset-confirm">
-                <label for="mb_confirm">Digite a frase de confirmação exatamente: <code>CONFIRMAR ENVIO DC NET</code></label>
-                <input id="mb_confirm" type="text" autocomplete="off" spellcheck="false" />
+              <div class="panel-block fieldset-test" aria-label="Teste antes do envio">
+                <h3 class="panel-block__kicker">Teste</h3>
+                <p class="panel-block__lead">Envie um teste antes de disparar para todos</p>
+                <label for="mb_testPhone">Número para teste (com DDD)</label>
+                <input id="mb_testPhone" type="text" inputmode="tel" placeholder="Com DDD e código do país se necessário" autocomplete="off" />
+                <p class="muted" style="margin-top:6px">Enviaremos <strong>uma</strong> mensagem de teste. O envio em lote em si só ocorre após a confirmação abaixo.</p>
+              </div>
+
+              <div class="row beesweb-actions beesweb-actions--preview">
+                <button type="button" class="btn2" id="btnMbPreview">Ver prévia</button>
+                <button type="button" class="btn2" id="btnMbTest">Enviar teste</button>
+              </div>
+              <p class="help-inline"><strong>Prévia:</strong> veja quantos clientes receberiam antes de enviar.</p>
+
+              <div class="panel-block panel-block--final">
+                <h3 class="panel-block__title">Envio para clientes</h3>
+                <p class="muted">Depois de validar a prévia, conclua os campos de confirmação. Uma janela de confirmação de segurança pode ser exibida.</p>
+                <div class="fieldset-confirm fieldset-confirm--emph">
+                <p class="field-label-confirm" id="mb_confirmLabel">Digite a frase abaixo para confirmar</p>
+                <p class="confirm-phrase" aria-hidden="true"><code>CONFIRMAR ENVIO DC NET</code></p>
+                <label for="mb_confirm" class="visually-hidden">Confirmação (frase exata)</label>
+                <input id="mb_confirm" type="text" autocomplete="off" spellcheck="false" aria-labelledby="mb_confirmLabel" />
                 <label class="checkbox-line" style="margin-top:10px">
                   <input type="checkbox" id="mb_ciente" />
-                  Estou ciente: vou enfileirar <strong>envio real</strong> para a lista filtrada da BeesWeb; a taxa é controlada e pode levar minutos/horas.
+                  Estou ciente e confirmo o envio
                 </label>
                 <label class="checkbox-line">
                   <input type="checkbox" id="mb_outside" />
-                  Autorizar criação do lote fora do horário comercial (São Paulo), se a API estiver nessa condição.
+                  Autorizar envio fora do horário comercial, quando o sistema exigir esta opção
                 </label>
                 <div class="row" style="margin-top:10px">
-                  <button type="button" class="btn btn--danger" id="btnMbCreate" disabled>3 — Criar lote real</button>
+                  <button type="button" class="btn btn-cta" id="btnMbCreate" disabled>Enviar mensagem para clientes</button>
                 </div>
                 <p class="muted mb-create-hint" id="mb_createHint">Pré-requisitos: prévia realizada, frase correta, checkbox &quot;Estou ciente&quot;.</p>
+                </div>
               </div>
 
               <div class="mb-job-card" id="mb_jobCard" style="display:none" aria-live="polite">
-                <h3 class="subsection-title">Lote ativo / último</h3>
-                <p class="mb-job-meta"><span id="mb_jobStatus">—</span> — ID <code id="mb_jobId">—</code></p>
+                <h3 class="subsection-title">Acompanhamento do envio</h3>
+                <p class="mb-job-meta"><span id="mb_jobStatus">—</span> — Código <code id="mb_jobId">—</code></p>
                 <ul class="mb-job-counters">
                   <li>Total: <strong id="mb_c_total">0</strong></li>
                   <li>Enviados: <strong id="mb_c_sent">0</strong></li>
@@ -199,19 +431,19 @@
                   <button type="button" class="btn2" id="btnMbResume">Retomar</button>
                   <button type="button" class="btn2" id="btnMbCancel" style="background:#fecaca">Cancelar</button>
                 </div>
-                <p class="result-block-label" style="margin-top:10px">Últimos logs (mascarado)</p>
+                <p class="result-block-label" style="margin-top:10px">Registros resumidos (dados ofuscados)</p>
                 <pre id="mb_jobLogs" class="result-pre result-pre--sub"></pre>
               </div>
 
               <div class="result-block">
-                <p class="result-block-label">Resposta de prévia / teste / criação</p>
-                <pre id="mb_result" class="result-pre" aria-live="polite">(Nenhuma requisição ainda.)</pre>
+                <p class="result-block-label">Status do envio</p>
+                <pre id="mb_result" class="result-pre" aria-live="polite">(Ainda sem envio.)</pre>
               </div>
             </section>
           </div>
 
           <div class="save-bar">
-            <button type="button" class="btn" id="btnSave">Salvar</button>
+            <button type="button" class="btn" id="btnSave">Salvar configurações</button>
             <span id="saveStatus" class="muted"></span>
           </div>
         </div>
@@ -219,5 +451,10 @@
     </div>
   </div>
   <script src="/chatbot-admin/panel.js" defer></script>
+  <script
+    async
+    defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBb6DcSU_kUrTxOJVrvK63mC1olRQn42tg&callback=initGoogleCoverageMap"
+  ></script>
 </body>
 </html>

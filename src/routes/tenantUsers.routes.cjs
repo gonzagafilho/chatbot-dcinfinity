@@ -83,7 +83,7 @@ router.patch("/:id", async (req, res) => {
     const updated = await TenantUser.findOneAndUpdate(
       { _id: id, tenant },
       { $set: patch },
-      { new: true }
+      { returnDocument: "after" }
     ).select("_id tenant name email role active lastLoginAt createdAt updatedAt");
 
     if (!updated) return res.status(404).json({ ok: false, error: "not_found" });
@@ -122,7 +122,7 @@ router.post("/:id/reset-password", async (req, res) => {
     const updated = await TenantUser.findOneAndUpdate(
       { _id: id, tenant },
       { $set: { passwordHash } },
-      { new: true }
+      { returnDocument: "after" }
     ).select("_id email");
 
     if (!updated) return res.status(404).json({ ok: false, error: "not_found" });

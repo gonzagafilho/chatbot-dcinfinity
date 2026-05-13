@@ -18,7 +18,7 @@ async function upsertLead({ tenant, channel, key, phone = "", name = "", lastTex
       },
       $setOnInsert: { status: "novo" },
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: "after" }
   );
 }
 

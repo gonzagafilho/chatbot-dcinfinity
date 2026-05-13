@@ -1,7 +1,8 @@
 "use strict";
 
 const MaintenanceBroadcastJob = require("../models/MaintenanceBroadcastJob");
-const { sendWhatsAppText } = require("./whatsappSend");
+const Lead = require("../models/Lead");
+const { sendWhatsAppText, sendWhatsAppImage } = require("./whatsappSend");
 const {
   collectAllCustomers,
   filterCustomersByAudienceList,
@@ -22,6 +23,26 @@ const AUDIENCE_LABELS = {
 
 function digitsOnly(s) {
   return String(s || "").replace(/\D/g, "");
+}
+
+function normalizeBrazilPhone(input) {
+  let d = String(input || "").replace(/\D/g, "");
+
+  // remove 0 inicial
+  if (d.startsWith("0")) d = d.slice(1);
+
+  // adiciona DDI Brasil se não tiver
+  if (d.length === 10 || d.length === 11) {
+    d = "55" + d;
+  }
+
+  // garantir celular com 9 dígitos
+  if (d.length === 12) {
+    // exemplo: 556198888888 → pode estar faltando 9
+    d = d.slice(0, 4) + "9" + d.slice(4);
+  }
+
+  return d;
 }
 
 function normalizeReturnText(body) {
@@ -104,21 +125,52 @@ function isValidE164ish(d) {
 }
 
 /**
+ * Alinha sentCount/failedCount com totais e recalcula successRate.
+ * (totalSent/totalFailed permanecem a fonte de incremento do worker; métricas espelhadas)
+ */
+function syncBroadcastMetrics(job) {
+  if (!job) return;
+  const ts = job.totalSent != null ? job.totalSent : 0;
+  const tf = job.totalFailed != null ? job.totalFailed : 0;
+  job.sentCount = ts;
+  job.failedCount = tf;
+  const t = (job.sentCount || 0) + (job.failedCount || 0);
+  job.successRate = t > 0 ? Math.round(((job.sentCount || 0) / t) * 100) : 0;
+}
+
+/**
+ * Grava conclusão do lote: métricas + completedAt (só when status=completed)
+ */
+function finalizeJobCompletionFields(job) {
+  if (!job) return;
+  if (String(job.status) === "completed" && !job.completedAt) {
+    job.completedAt = new Date();
+  }
+  job.finishedAt = job.finishedAt || new Date();
+  syncBroadcastMetrics(job);
+}
+
+/**
  * @returns {Promise<{ customers: any[], phoneList: string[] }>}
  */
-async function resolveRecipientPhones(audience) {
-  if (!isBeeswebConfigured()) {
-    const err = new Error("beesweb_not_configured");
-    err.code = "BEESWEB_NOT_CONFIGURED";
-    throw err;
-  }
-  const raw = await collectAllCustomers();
-  let list = filterCustomersByAudienceList(raw, audience);
-  if (audience === "contract") {
-    list = await filterByActiveContract(raw);
-  }
-  const phoneList = buildPhoneList(list);
-  return { customers: list, phoneList };
+async function resolveRecipientPhones(audience, tenant = "dcnet") {
+  const query = {
+    tenant: String(tenant || "dcnet").trim().toLowerCase() || "dcnet",
+    phone: { $exists: true, $ne: null },
+    campaignOptIn: { $ne: false },
+  };
+
+  const leads = await Lead.find(query, {
+    _id: 1,
+    phone: 1,
+    name: 1,
+    beeswebCustomerId: 1,
+    campaignOptIn: 1,
+  }).lean();
+
+  const phoneList = buildPhoneList(leads);
+
+  return { customers: leads, phoneList };
 }
 
 async function previewBroadcast(body) {
@@ -131,7 +183,7 @@ async function previewBroadcast(body) {
   let estimatedCount = 0;
   let sampleMaskedPhones = [];
   try {
-    const { phoneList } = await resolveRecipientPhones(n.audience);
+    const { phoneList } = await resolveRecipientPhones(n.audience, n.tenant);
     estimatedCount = phoneList.length;
     sampleMaskedPhones = phoneList.slice(0, 8).map((p) => maskFromDigits(p));
   } catch (e) {
@@ -157,8 +209,11 @@ async function sendTestBroadcast(reqBody, adminEmail) {
   if (!n.title && !n.message) {
     return { err: 400, body: { ok: false, error: "title_or_message_required" } };
   }
-  const testPhone = String(reqBody.testPhone != null ? reqBody.testPhone : "").trim();
-  const d = digitsOnly(testPhone);
+  const testPhoneRaw = String(reqBody.testPhone != null ? reqBody.testPhone : "").trim();
+  let d = normalizeBrazilPhone(testPhoneRaw);
+
+  console.log("PHONE FINAL NORMALIZED:", d);
+
   if (!isValidE164ish(d)) {
     return { err: 400, body: { ok: false, error: "test_phone_invalid" } };
   }
@@ -166,7 +221,51 @@ async function sendTestBroadcast(reqBody, adminEmail) {
   if (!text) {
     return { err: 400, body: { ok: false, error: "empty_composed" } };
   }
-  const sent = await sendWhatsAppText(d, text, {});
+  let sent;
+
+  const imageUrlOriginal = String(reqBody.imageUrl != null ? reqBody.imageUrl : "");
+  let imageUrl = imageUrlOriginal;
+
+  // limpeza agressiva
+  imageUrl = imageUrl
+    .replace(/\s+/g, "") // remove espaços e quebras
+    .replace(/[\u200B-\u200D\uFEFF]/g, "") // remove caracteres invisíveis
+    .trim();
+
+  // validação forte
+  if (imageUrl && !/^https:\/\/.+\.(png|jpg|jpeg|webp)$/i.test(imageUrl)) {
+    console.error("URL inválida detectada:", imageUrl);
+    imageUrl = "";
+  }
+
+  const sendMode = imageUrl ? "image" : "text";
+  console.log("[maintenance-broadcast/test:diag]", {
+    at: new Date().toISOString(),
+    admin: String(adminEmail || ""),
+    testPhoneOriginal: testPhoneRaw,
+    toDigitsE164ish: d,
+    imageUrlOriginalLen: imageUrlOriginal.length,
+    imageUrlOriginalSample: imageUrlOriginal.slice(0, 80) + (imageUrlOriginal.length > 80 ? "…" : ""),
+    imageUrlClean: imageUrl,
+    sendMode,
+    composedTextLength: text.length,
+  });
+
+  if (imageUrl) {
+    sent = await sendWhatsAppImage(d, imageUrl, text);
+  } else {
+    sent = await sendWhatsAppText(d, text, {});
+  }
+
+  try {
+    console.log(
+      "[maintenance-broadcast/test:meta-raw]",
+      JSON.stringify(sent, null, 2)
+    );
+  } catch (e) {
+    console.log("[maintenance-broadcast/test:meta-raw] (não-JSON)", sent);
+  }
+
   const sentToMasked = maskFromDigits(d);
   console.log("[maintenance-broadcast/test] sent", {
     at: new Date().toISOString(),
@@ -237,12 +336,18 @@ async function createBroadcastJob(body, admin) {
     tenant: n.tenant,
     title: n.title,
     message: n.message,
+    imageUrl: body.imageUrl || "",
     returnText: n.returnText,
     audience: n.audience,
     composedText,
     status: "queued",
     totalEstimated: phoneList.length,
     totalQueued: phoneList.length,
+    totalSent: 0,
+    totalFailed: 0,
+    sentCount: 0,
+    failedCount: 0,
+    successRate: 0,
     phoneQueue: phoneList,
     currentIndex: 0,
     createdBy,
@@ -276,6 +381,9 @@ function jobToPublicView(job) {
     totalQueued: o.totalQueued,
     totalSent: o.totalSent,
     totalFailed: o.totalFailed,
+    sentCount: o.sentCount != null ? o.sentCount : o.totalSent,
+    failedCount: o.failedCount != null ? o.failedCount : o.totalFailed,
+    successRate: o.successRate != null ? o.successRate : 0,
     currentIndex: o.currentIndex,
     phoneQueueSize: Array.isArray(o.phoneQueue) ? o.phoneQueue.length : 0,
     pending: Math.max(
@@ -286,11 +394,13 @@ function jobToPublicView(job) {
     updatedAt: o.updatedAt,
     startedAt: o.startedAt,
     finishedAt: o.finishedAt,
+    completedAt: o.completedAt,
     canceledAt: o.canceledAt,
     audience: o.audience,
     lastError: o.lastError,
     title: o.title,
     messagePreview: o.message ? o.message.slice(0, 200) : "",
+    imageUrl: o.imageUrl || "",
     logs: (o.logs || [])
       .slice(-40)
       .map((L) => ({
@@ -361,7 +471,7 @@ async function processOneMessageStep(jobId) {
   if (fresh.currentIndex >= (fresh.phoneQueue || []).length) {
     if (fresh.status === "running" || fresh.status === "queued") {
       fresh.status = "completed";
-      fresh.finishedAt = fresh.finishedAt || new Date();
+      finalizeJobCompletionFields(fresh);
       await fresh.save();
     }
     return;
@@ -374,9 +484,10 @@ async function processOneMessageStep(jobId) {
     if (fresh.logs.length > MAX_LOGS) fresh.logs = fresh.logs.slice(-MAX_LOGS);
     fresh.currentIndex += 1;
     fresh.totalFailed += 1;
+    syncBroadcastMetrics(fresh);
     if (fresh.currentIndex >= (fresh.phoneQueue || []).length) {
       fresh.status = "completed";
-      fresh.finishedAt = new Date();
+      finalizeJobCompletionFields(fresh);
     } else {
       fresh.status = "running";
     }
@@ -386,7 +497,11 @@ async function processOneMessageStep(jobId) {
   const masked = maskFromDigits(to);
   if (["paused", "canceled", "failed", "completed"].includes(fresh.status)) return;
   try {
-    await sendWhatsAppText(to, fresh.composedText, {});
+    if (fresh.imageUrl) {
+      await sendWhatsAppText(to, fresh.composedText + "\n\n" + fresh.imageUrl, {});
+    } else {
+      await sendWhatsAppText(to, fresh.composedText, {});
+    }
     fresh.logs = fresh.logs || [];
     fresh.logs.push({ at: new Date(), phoneMasked: masked, status: "sent" });
     if (fresh.logs.length > MAX_LOGS) fresh.logs = fresh.logs.slice(-MAX_LOGS);
@@ -400,10 +515,11 @@ async function processOneMessageStep(jobId) {
     fresh.currentIndex += 1;
     fresh.totalFailed += 1;
   }
+  syncBroadcastMetrics(fresh);
   const done = fresh.currentIndex >= (fresh.phoneQueue || []).length;
   if (done) {
     fresh.status = "completed";
-    fresh.finishedAt = new Date();
+    finalizeJobCompletionFields(fresh);
   } else {
     fresh.status = "running";
   }
@@ -419,7 +535,7 @@ async function runWorkerTick() {
       run = await MaintenanceBroadcastJob.findOneAndUpdate(
         { status: "queued" },
         { $set: { status: "running", startedAt: new Date() } },
-        { sort: { createdAt: 1 }, new: true }
+        { sort: { createdAt: 1 }, returnDocument: 'after' }
       );
     }
     if (!run) {
@@ -434,7 +550,7 @@ async function runWorkerTick() {
       if (j.currentIndex >= (j.phoneQueue || []).length) {
         if (j.status === "running" || j.status === "queued") {
           j.status = "completed";
-          j.finishedAt = j.finishedAt || new Date();
+          finalizeJobCompletionFields(j);
           await j.save();
         }
         return;

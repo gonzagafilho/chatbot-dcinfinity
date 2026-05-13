@@ -959,7 +959,30 @@
     qs("m_body").value = m.body || "";
     qs("m_eta").value = m.eta ? String(m.eta) : "";
 
-    document.querySelectorAll("img.preview").forEach(function (img) {
+    
+      var automation = cfg.automation || {};
+
+      if (qs("billingLiveToggle")) {
+        qs("billingLiveToggle").checked =
+          automation.billingLive !== false;
+      }
+
+      if (qs("seasonalLiveToggle")) {
+        qs("seasonalLiveToggle").checked =
+          automation.seasonalLive !== false;
+      }
+
+      if (qs("campaignMaxInput")) {
+        qs("campaignMaxInput").value =
+          Number(automation.campaignMax || 10);
+      }
+
+      if (qs("billingMaxInput")) {
+        qs("billingMaxInput").value =
+          Number(automation.billingMax || 5);
+      }
+
+document.querySelectorAll("img.preview").forEach(function (img) {
       var id = img.getAttribute("data-for");
       var inp = id ? qs(id) : null;
       if (!inp || !inp.value.trim()) {
@@ -999,6 +1022,28 @@
         title: qs("m_title").value.trim(),
         body: qs("m_body").value.trim(),
         eta: qs("m_eta").value.trim() ? qs("m_eta").value.trim() : null,
+      },
+
+      automation: {
+        billingLive:
+          !!(qs("billingLiveToggle") &&
+             qs("billingLiveToggle").checked),
+
+        seasonalLive:
+          !!(qs("seasonalLiveToggle") &&
+             qs("seasonalLiveToggle").checked),
+
+        campaignMax:
+          Number(
+            (qs("campaignMaxInput") &&
+             qs("campaignMaxInput").value) || 10
+          ),
+
+        billingMax:
+          Number(
+            (qs("billingMaxInput") &&
+             qs("billingMaxInput").value) || 5
+          ),
       },
     };
   }
@@ -1077,6 +1122,180 @@
     }
   }
 
+  function renderAutomationLogs(logs) {
+    var box = qs("automationLogsList");
+    if (!box) return;
+
+    if (!Array.isArray(logs) || !logs.length) {
+      box.innerHTML = '<div class="automation-log-row">Nenhum evento recente.</div>';
+      return;
+    }
+
+    box.innerHTML = logs
+      .map(function (log) {
+        var level = String(log.level || "info").toLowerCase();
+        var type = String(log.type || "system").toUpperCase();
+        var msg = String(log.message || "");
+        var time = log.time ? new Date(log.time).toLocaleString("pt-BR") : "";
+
+        return (
+          '<div class="automation-log-row automation-log-row--' + level + '">' +
+            '<div class="automation-log-main">' +
+              '<span class="automation-log-type">' + type + '</span>' +
+              '<strong>' + msg.replace(/[<>&]/g, "") + '</strong>' +
+            '</div>' +
+            '<small>' + time + '</small>' +
+          '</div>'
+        );
+      })
+      .join("");
+  }
+
+  async function loadAutomationLogs() {
+    try {
+      const data = await api("/api/chatbot-admin/automation/logs-real");
+      if (data && data.ok) renderAutomationLogs(data.logs || []);
+    } catch (e) {
+      console.error("automation_logs_error", e);
+      renderAutomationLogs([
+        {
+          type: "system",
+          level: "error",
+          message: "Erro ao carregar logs operacionais",
+          time: new Date().toISOString(),
+        },
+      ]);
+    }
+  }
+
+  async function loadAutomationStatus() {
+    try {
+      const data = await api("/api/chatbot-admin/automation/status");
+
+      if (!data || !data.ok) return;
+
+      // Billing
+      if (qs("autoBillingStatus")) {
+        qs("autoBillingStatus").textContent =
+          data.billing?.enabled
+            ? String(data.billing?.mode || "LIVE").toUpperCase()
+            : "OFF";
+      }
+
+      // Campaign
+      if (qs("autoCampaignStatus")) {
+        qs("autoCampaignStatus").textContent =
+          data.seasonalCampaign?.enabled
+            ? String(data.seasonalCampaign?.mode || "LIVE").toUpperCase()
+            : "OFF";
+      }
+
+      // Sync
+      if (qs("autoSyncStatus")) {
+        qs("autoSyncStatus").textContent =
+          data.sync?.enabled ? "ONLINE" : "OFF";
+      }
+
+      // Limits
+      if (qs("autoCampaignLimit")) {
+        qs("autoCampaignLimit").textContent =
+          String(data.seasonalCampaign?.maxSends || 0);
+      }
+
+      if (qs("autoBillingLimit")) {
+        qs("autoBillingLimit").textContent =
+          String(data.billing?.maxSends || 0);
+      }
+
+        // Indicadores de envio do dashboard
+        const campaignHistory = data.campaignHistory || {};
+        const campaignToday = campaignHistory.today || {};
+        const campaignRows = Array.isArray(campaignHistory.latest)
+          ? campaignHistory.latest
+          : [];
+
+        const totalJobs = Number(campaignToday.executions || 0);
+        const totalSent = Number(campaignToday.totalSent || 0);
+        const totalFailed = Number(campaignToday.totalFailed || 0);
+
+        const totalProcessed = totalSent + totalFailed;
+
+        const successRate = totalProcessed > 0
+          ? Math.round((totalSent / totalProcessed) * 100)
+          : 0;
+
+        if (qs("d_totalJobs")) {
+          qs("d_totalJobs").textContent = String(totalJobs);
+        }
+
+        if (qs("d_totalSent")) {
+          qs("d_totalSent").textContent = String(totalSent);
+        }
+
+        if (qs("d_totalFailed")) {
+          qs("d_totalFailed").textContent = String(totalFailed);
+        }
+
+        if (qs("d_successRate")) {
+          qs("d_successRate").textContent = String(successRate) + "%";
+        }
+
+        if (qs("d_history")) {
+          if (!campaignRows.length) {
+            qs("d_history").innerHTML =
+              '<div class="muted">Nenhuma campanha registrada ainda.</div>';
+          } else {
+            qs("d_history").innerHTML = campaignRows.map(function (item) {
+              const when =
+                item.executedAt || item.createdAt
+                  ? new Date(item.executedAt || item.createdAt).toLocaleString("pt-BR")
+                  : "-";
+
+              return [
+                '<div class="history-row">',
+                '<strong>' + String(item.campaignKey || item.type || "campanha") + '</strong>',
+                '<span>Modo: ' + String(item.mode || "-").toUpperCase() + '</span>',
+                '<span>Enviadas: ' + String(item.totalSent || 0) + '</span>',
+                '<span>Falhas: ' + String(item.totalFailed || 0) + '</span>',
+                '<span>Horário: ' + when + '</span>',
+                '</div>'
+              ].join("");
+            }).join("");
+          }
+        }
+
+      // Geral
+      if (qs("autoGeneralStatus")) {
+        qs("autoGeneralStatus").textContent = "OPERACIONAL";
+      }
+
+      loadAutomationLogs();
+
+      // Leads extras
+      if (!qs("automationLeadStats") && qs("autoGeneralStatus")) {
+        const wrap = qs("autoGeneralStatus").closest(".automation-item");
+
+        if (wrap) {
+          const extra = document.createElement("small");
+          extra.id = "automationLeadStats";
+
+          extra.textContent =
+            "Leads: " +
+            (data.leads?.total || 0) +
+            " • Ativos: " +
+            (data.leads?.active || 0) +
+            " • Inativos: " +
+            (data.leads?.inactive || 0);
+
+          wrap.appendChild(extra);
+        }
+      }
+    } catch (e) {
+      console.error("automation_status_error", e);
+    }
+  }
+
+
   function wirePreviews() {
     ["c_aniversarioImage", "c_pascoaImage", "c_diaDasMaesImage", "c_diaDosPaisImage", "c_natalImage", "c_anoNovoImage"].forEach(
       function (id) {
@@ -1103,7 +1322,14 @@
     qs("btnLogin").addEventListener("click", login);
     qs("btnLogout").addEventListener("click", logout);
     qs("btnLoad").addEventListener("click", loadConfig);
-    qs("btnSave").addEventListener("click", save);
+    
+qs("btnSave").addEventListener("click", save);
+
+      if (qs("btnSaveAutomationLive")) {
+        qs("btnSaveAutomationLive")
+          .addEventListener("click", save);
+      }
+
     wirePreviews();
     initDigitalFlyerLinks();
     initCoverageMap();
@@ -1250,6 +1476,12 @@
           qs("editorCard").style.display = "block";
           setSidebarVisible(true);
           if (qs("btnLogout")) qs("btnLogout").style.display = "inline-block";
+
+        try {
+          loadAutomationStatus();
+        } catch (e1) {
+          console.error("loadAutomationStatus_after_login_error", e1);
+        }
           setText(qs("loginStatus"), "Sessão restaurada.", "ok");
           return loadConfig();
         })

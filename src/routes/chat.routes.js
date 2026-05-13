@@ -2,6 +2,7 @@ const express = require("express");
 const { replyFromRules } = require("../services/rules");
 const WaMessage = require("../models/WaMessage");
 const Lead = require("../models/Lead");
+const { resolveConversationContext } = require("../services/contextResolver");
 
 const router = express.Router();
 
@@ -29,12 +30,22 @@ router.post("/chat", async (req, res) => {
   const leadKey = `web:${sessionId}`;
 
   // 1) calcula reply (não depende do Mongo)
-  const result = replyFromRules({
+  const convCtx = await resolveConversationContext({
+    tenant,
+    phone: leadKey,
+    origin: "web",
+  });
+
+  const result = await replyFromRules({
     tenant,
     message,
     origin: "web",
     page,
     phone: leadKey,
+    customer: convCtx.customer,
+    history: convCtx.history,
+    context: convCtx.context,
+    maintenance: convCtx.maintenance,
   });
 
   const replyText =
@@ -76,7 +87,7 @@ router.post("/chat", async (req, res) => {
             tenant,
           },
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       )
     )
     .catch((e) =>

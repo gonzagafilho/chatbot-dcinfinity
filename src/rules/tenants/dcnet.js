@@ -1,5 +1,9 @@
-function ruleDcnet({ message }) {
-  const msg = (message || "").trim().toLowerCase();
+/**
+ * @param {{ message?: string, origin?: string } & Record<string, unknown>} ctx
+ */
+function ruleDcnet(ctx) {
+  const msg = (ctx?.message || "").trim().toLowerCase();
+  const origin = (ctx?.origin || "").toString().trim().toLowerCase();
 
   // atalhos
   if (msg === "1" || msg.includes("plano")) {
@@ -29,7 +33,13 @@ function ruleDcnet({ message }) {
   }
 
   if (msg === "4" || msg.includes("atendente") || msg.includes("humano")) {
-    return "👤 Ok! Vou chamar um atendente.\nMe informe seu *nome* e *bairro*.\n\n📲 WhatsApp: (61) 99965-6269";
+    const base =
+      "👤 Ok! Vou chamar um atendente.\nMe informe seu *nome* e *bairro*.\n\n" +
+      "📲 WhatsApp: (61) 99640-6911";
+    if (origin === "whatsapp") {
+      return { reply: base, falarComAtendenteCta: true };
+    }
+    return `${base}\nhttps://wa.me/5561996406911`;
   }
 
   // escolha de plano
