@@ -1,133 +1,367 @@
-<!doctype html>
-<html lang="pt-br">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Painel do Tenant - Chatbot DCInfinity</title>
-  <style>
-    :root{
-      --bg:#050a16; --panel:#0b1630; --panel2:#0e1b39; --line:#1b2a55;
-      --text:#e6eeff; --muted:#9db0d9; --ok:#2dd4bf; --warn:#fbbf24; --bad:#fb7185;
-      --btn:#142a58;
-    }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
-      background:radial-gradient(1200px 600px at 30% 10%, #0b2a7a33, transparent),
-                 radial-gradient(900px 500px at 70% 0%, #1d4ed833, transparent),
-                 var(--bg);
-      color:var(--text);
-    }
-    .wrap{max-width:980px;margin:44px auto;padding:0 16px;}
-    .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
-      border-radius:14px;padding:18px 18px;box-shadow:0 10px 30px #00000055;margin-bottom:14px;
-    }
-    h1{margin:0 0 6px 0;font-size:26px}
-    .muted{color:var(--muted);font-size:13px}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    input,select,button,textarea{
-      background:#0b1430;border:1px solid var(--line);color:var(--text);
-      padding:10px 12px;border-radius:10px;outline:none;
-    }
-    input:focus,textarea:focus{border-color:#2b49a3}
-    button{background:var(--btn);cursor:pointer;font-weight:600}
-    button:hover{filter:brightness(1.1)}
-    .grow{flex:1}
-    .status{margin-top:8px;font-size:13px}
-    .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
-    .grid{display:grid;grid-template-columns:320px 1fr;gap:12px}
-    @media (max-width:900px){.grid{grid-template-columns:1fr}}
-    .box{border:1px solid var(--line);border-radius:12px;background:#07112a;padding:12px}
-    .lead{border:1px solid var(--line);border-radius:12px;background:#07112a;padding:10px;margin-bottom:10px;cursor:pointer}
-    .lead:hover{border-color:#2b49a3}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
-    .msgs{max-height:520px;overflow:auto;padding-right:6px}
-    .msg{border:1px solid var(--line);border-radius:12px;background:#07112a;padding:10px;margin-bottom:10px}
-    .msg .meta{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
-    .msg .txt{margin-top:6px;white-space:pre-wrap}
-    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    textarea{width:100%;min-height:90px;resize:vertical}
-    .small{font-size:12px;color:var(--muted)}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <h1>Painel do Tenant</h1>
-      <div id="status" class="muted">Deslogado</div>
-    </div>
+<style>
+  :root{
+    --bg: #050914;
+    --panel: rgba(12, 22, 48, .78);
+    --panel2: rgba(10, 18, 41, .92);
+    --line: rgba(120, 160, 255, .16);
+    --line2: rgba(120, 160, 255, .22);
 
-    <div id="loginCard" class="card">
-      <div style="font-weight:700;margin-bottom:10px">Login</div>
-      <div class="row">
-        <input id="tenant" placeholder="tenant (ex: dcsolar)" style="width:220px" />
-        <input id="email" placeholder="email" style="width:260px" />
-        <input id="password" type="password" placeholder="senha" style="width:220px" />
-        <button id="btnLogin" style="width:140px">Entrar</button>
-      </div>
-      <div id="loginMsg" class="status muted"></div>
-    </div>
+    --text: #eaf2ff;
+    --muted: rgba(190, 210, 255, .72);
 
-    <div id="app" class="card" style="display:none">
-      <div class="row" style="justify-content:space-between;align-items:flex-start">
-        <div>
-          <div id="me" style="font-weight:700">—</div>
-          <div class="small" id="me2">—</div>
-        </div>
-        <div class="row">
-          <button id="btnLogout">Sair</button>
-        </div>
-      </div>
+    --brand: #4f8cff;
+    --brand2:#2dd4bf;
 
-      <div class="grid" style="margin-top:14px">
-        <div class="box">
-          <div class="row" style="justify-content:space-between">
-            <div style="font-weight:700">Leads</div>
-          </div>
+    --ok: #2dd4bf;
+    --warn: #fbbf24;
+    --bad: #fb7185;
+    --info:#60a5fa;
 
-          <div class="row" style="margin-top:10px">
-            <select id="filterStatus" class="grow">
-              <option value="">Todos</option>
-              <option value="novo">novo</option>
-              <option value="handoff">handoff</option>
-              <option value="em_atendimento">em_atendimento</option>
-              <option value="resolvido">resolvido</option>
-            </select>
-            <input id="q" class="grow" placeholder="buscar (ex: web_teste999)" />
-            <button id="btnRefresh">Atualizar</button>
-          </div>
+    --shadow: 0 18px 60px rgba(0,0,0,.55);
+    --shadow2: 0 8px 24px rgba(0,0,0,.35);
+    --radius: 18px;
+    --radius2: 14px;
 
-          <div id="leads" style="margin-top:10px"></div>
-        </div>
+    --btn: rgba(79, 140, 255, .12);
+    --btnBorder: rgba(79, 140, 255, .25);
 
-        <div class="box">
-          <div class="row" style="justify-content:space-between">
-            <div>
-              <div style="font-weight:700">Conversa</div>
-              <div id="currentLead" class="small">—</div>
-            </div>
-            <div class="actions">
-              <button id="btnTake">Assumir</button>
-              <button id="btnRelease">Liberar</button>
-              <button id="btnResolve">Finalizar</button>
-            </div>
-          </div>
+    --glass: blur(14px);
+  }
 
-          <div class="msgs" id="msgs" style="margin-top:10px"></div>
+  *{box-sizing:border-box}
 
-          <div style="margin-top:10px">
-            <textarea id="text" placeholder="Digite uma mensagem..."></textarea>
-            <div class="row" style="justify-content:space-between;margin-top:8px">
-              <div id="sendMsg" class="small"></div>
-              <button id="btnSend">Enviar</button>
-            </div>
-          </div>
-        </div>
-      </div>
+  html,body{height:100%}
+  body{
+    margin:0;
+    color:var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+    background:
+      radial-gradient(1200px 700px at 18% 10%, rgba(79,140,255,.22), transparent 60%),
+      radial-gradient(900px 500px at 82% 0%, rgba(45,212,191,.14), transparent 55%),
+      radial-gradient(1200px 800px at 60% 95%, rgba(99,102,241,.10), transparent 55%),
+      linear-gradient(180deg, #040713, #050914 55%, #040713);
+    overflow-x:hidden;
+  }
 
-      <div id="appMsg" class="status muted" style="margin-top:10px"></div>
-    </div>
-  </div>
+  /* Scroll */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{
+    background: rgba(120,160,255,.22);
+    border-radius: 999px;
+    border: 2px solid rgba(0,0,0,0);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-track{background: rgba(255,255,255,.04)}
 
-  <!-- IMPORTANTE: JS externo (CSP/Helmet não bloqueia) -->
-  <script src="./app.js"></script>
-</body>
-</html>
+  .wrap{
+    max-width: 1150px;
+    margin: 40px auto;
+    padding: 0 16px;
+  }
+
+  .card{
+    background: linear-gradient(180deg, var(--panel), var(--panel2));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 18px;
+    margin-bottom: 14px;
+    backdrop-filter: var(--glass);
+  }
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+
+  h1{
+    margin:0;
+    font-size: 26px;
+    letter-spacing:.2px;
+  }
+
+  .muted{
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .status{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  .ok{ color: var(--ok); }
+  .warn{ color: var(--warn); }
+  .err, .bad{ color: var(--bad); }
+  .info{ color: var(--info); }
+
+  .row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+  }
+
+  input, select, button, textarea{
+    color: var(--text);
+    background: rgba(7, 14, 33, .72);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 11px 12px;
+    outline:none;
+    transition: .15s ease;
+  }
+
+  input::placeholder, textarea::placeholder{color: rgba(190,210,255,.45)}
+  input:focus, textarea:focus, select:focus{
+    border-color: rgba(79,140,255,.55);
+    box-shadow: 0 0 0 4px rgba(79,140,255,.12);
+  }
+
+  button{
+    cursor:pointer;
+    background: linear-gradient(180deg, rgba(79,140,255,.18), rgba(79,140,255,.10));
+    border: 1px solid var(--btnBorder);
+    box-shadow: var(--shadow2);
+    font-weight: 600;
+    letter-spacing:.2px;
+  }
+  button:hover{
+    transform: translateY(-1px);
+    border-color: rgba(79,140,255,.55);
+  }
+  button:active{
+    transform: translateY(0px);
+    opacity:.95;
+  }
+
+  .btnGhost{
+    background: rgba(255,255,255,.05);
+    border-color: rgba(120,160,255,.18);
+  }
+
+  .btnDanger{
+    background: linear-gradient(180deg, rgba(251,113,133,.18), rgba(251,113,133,.08));
+    border-color: rgba(251,113,133,.28);
+  }
+
+  .btnOk{
+    background: linear-gradient(180deg, rgba(45,212,191,.18), rgba(45,212,191,.08));
+    border-color: rgba(45,212,191,.30);
+  }
+
+  .small{font-size: 12.5px; color: var(--muted)}
+  .sep{height:1px;background:rgba(120,160,255,.14);margin:12px 0}
+
+  /* ======= APP LAYOUT ======= */
+  .grid{
+    display:grid;
+    grid-template-columns: 360px 1fr;
+    gap: 14px;
+  }
+
+  .panel{
+    background: linear-gradient(180deg, rgba(12, 22, 48, .65), rgba(10, 18, 41, .92));
+    border: 1px solid rgba(120,160,255,.14);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+    backdrop-filter: var(--glass);
+    min-height: 560px;
+  }
+
+  .panelHeader{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom: 10px;
+  }
+
+  .panelHeader .title{
+    font-weight: 800;
+    letter-spacing:.2px;
+  }
+
+  /* ======= LEADS ======= */
+  #leads{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-top: 10px;
+    max-height: 470px;
+    overflow:auto;
+    padding-right:6px;
+  }
+
+  .lead{
+    border: 1px solid rgba(120,160,255,.12);
+    background: rgba(7, 14, 33, .58);
+    border-radius: 16px;
+    padding: 12px 12px;
+    cursor:pointer;
+    transition: .14s ease;
+  }
+  .lead:hover{
+    border-color: rgba(79,140,255,.45);
+    transform: translateY(-1px);
+  }
+  .lead.active{
+    border-color: rgba(45,212,191,.55);
+    box-shadow: 0 0 0 4px rgba(45,212,191,.10);
+  }
+
+  .titleRow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+
+  .titleRow .title{
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing:.2px;
+  }
+
+  .badge{
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing:.35px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(120,160,255,.18);
+    background: rgba(255,255,255,.05);
+    text-transform: uppercase;
+  }
+  .badge.ok{
+    color: var(--ok);
+    border-color: rgba(45,212,191,.35);
+    background: rgba(45,212,191,.10);
+  }
+  .badge.warn{
+    color: var(--warn);
+    border-color: rgba(251,191,36,.35);
+    background: rgba(251,191,36,.10);
+  }
+  .badge.bad{
+    color: var(--bad);
+    border-color: rgba(251,113,133,.35);
+    background: rgba(251,113,133,.10);
+  }
+  .badge.info{
+    color: var(--info);
+    border-color: rgba(96,165,250,.35);
+    background: rgba(96,165,250,.10);
+  }
+
+  /* ======= CHAT ======= */
+  .chatHeader{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom: 10px;
+  }
+
+  #leadTitle{
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing:.2px;
+  }
+
+  #leadMeta{
+    margin-top: 4px;
+    color: rgba(190,210,255,.62);
+    font-size: 12px;
+  }
+
+  #chat{
+    background: rgba(7, 14, 33, .45);
+    border: 1px solid rgba(120,160,255,.12);
+    border-radius: 18px;
+    padding: 12px;
+    height: 380px;
+    overflow:auto;
+  }
+
+  .msg{
+    margin: 8px 0;
+    padding: 10px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(120,160,255,.10);
+    background: rgba(255,255,255,.04);
+    max-width: 92%;
+    box-shadow: 0 10px 20px rgba(0,0,0,.20);
+  }
+
+  .msg .meta{
+    font-size: 11px;
+    color: rgba(190,210,255,.58);
+    margin-bottom: 6px;
+  }
+
+  .msg.inbound{
+    margin-right:auto;
+    border-color: rgba(79,140,255,.18);
+    background: linear-gradient(180deg, rgba(79,140,255,.10), rgba(255,255,255,.02));
+  }
+
+  .msg.outbound{
+    margin-left:auto;
+    border-color: rgba(45,212,191,.22);
+    background: linear-gradient(180deg, rgba(45,212,191,.10), rgba(255,255,255,.02));
+  }
+
+  .msg.system{
+    margin-left:auto;
+    margin-right:auto;
+    max-width: 100%;
+    text-align:center;
+    border-style:dashed;
+    border-color: rgba(120,160,255,.18);
+    background: rgba(255,255,255,.03);
+  }
+
+  .composer{
+    display:flex;
+    gap:10px;
+    margin-top:10px;
+    align-items:flex-end;
+  }
+
+  textarea{
+    width:100%;
+    min-height: 90px;
+    resize: vertical;
+    border-radius: 18px;
+    padding: 12px 12px;
+  }
+
+  .rightBtns{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  /* Login */
+  #loginCard input{
+    min-width: 220px;
+  }
+  #loginCard button{
+    min-width: 140px;
+  }
+
+  /* Mobile */
+  @media (max-width: 980px){
+    .grid{grid-template-columns: 1fr}
+    .panel{min-height:auto}
+    #leads{max-height: 260px}
+    #chat{height: 340px}
+    .topbar{flex-direction:column;align-items:flex-start}
+  }
+</style>

@@ -319,11 +319,36 @@
                 <button type="button" class="btn2" id="btnSaveAutomationLive">
                   Salvar automações
                 </button>
+
+                <button
+                  type="button"
+                  class="btn"
+                  id="btnRunSeasonalNow"
+                  style="margin-top:12px"
+                >
+                  Executar campanha agora
+                </button>
               </div>
 
-Textos curtos (opcional)</h3>
+<h3 class="subsection-title">Textos curtos (opcional)</h3>
               <label>Aniversário (legenda; vazio = mensagem automática atual)</label>
               <textarea id="t_aniversarioText"></textarea>
+
+              <label>Páscoa</label>
+              <textarea id="t_pascoaText"></textarea>
+
+              <label>Dia das Mães</label>
+              <textarea id="t_diaDasMaesText"></textarea>
+
+              <label>Dia dos Pais</label>
+              <textarea id="t_diaDosPaisText"></textarea>
+
+              <label>Natal</label>
+              <textarea id="t_natalText"></textarea>
+
+              <label>Ano novo</label>
+              <textarea id="t_anoNovoText"></textarea>
+
               <label class="muted"><input type="checkbox" id="a_aniversario" checked /> Aniversário ativo</label>
             </section>
 
@@ -391,6 +416,8 @@ Textos curtos (opcional)</h3>
               <div class="row beesweb-actions beesweb-actions--preview">
                 <button type="button" class="btn2" id="btnMbPreview">Ver prévia</button>
                 <button type="button" class="btn2" id="btnMbTest">Enviar teste</button>
+<button type="button" class="btn2" id="btnBillingD2Test">Teste D+2</button>
+<button type="button" class="btn2" id="btnBillingReactivationTest">Teste Reativação</button>
               </div>
               <p class="help-inline"><strong>Prévia:</strong> veja quantos clientes receberiam antes de enviar.</p>
 

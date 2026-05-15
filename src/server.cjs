@@ -13,6 +13,10 @@ const { runBillingReminderScheduler, BILLING_REMINDER_CRON } = require("./jobs/b
 cron.schedule(BILLING_REMINDER_CRON, runBillingReminderScheduler);
 console.log(`[billing_reminder] scheduler_started cron="${BILLING_REMINDER_CRON}"`);
 
+const { runBillingAdvancedScheduler, BILLING_ADVANCED_CRON } = require("./jobs/billingAdvancedScheduler");
+cron.schedule(BILLING_ADVANCED_CRON, runBillingAdvancedScheduler);
+console.log(`[billing_advanced] scheduler_started cron="${BILLING_ADVANCED_CRON}"`);
+
 const PORT = process.env.PORT || 4010;
 
 (async () => {

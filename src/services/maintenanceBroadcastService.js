@@ -1,5 +1,7 @@
 "use strict";
 
+const mongoose = require("mongoose");
+
 const MaintenanceBroadcastJob = require("../models/MaintenanceBroadcastJob");
 const Lead = require("../models/Lead");
 const { sendWhatsAppText, sendWhatsAppImage } = require("./whatsappSend");
@@ -464,6 +466,36 @@ const PER_TICK = Math.max(
 
 let workerInFlight = false;
 
+function isRetryableBroadcastError(err) {
+  const msg = String((err && err.message) || err || "").toLowerCase();
+
+  if (!msg) return false;
+
+  return (
+    msg.includes("timeout") ||
+    msg.includes("timed out") ||
+    msg.includes("econnreset") ||
+    msg.includes("socket") ||
+    msg.includes("network") ||
+    msg.includes("rate") ||
+    msg.includes("429") ||
+    msg.includes("500") ||
+    msg.includes("502") ||
+    msg.includes("503") ||
+    msg.includes("504")
+  );
+}
+
+function getMaxRetries(job) {
+  const fromEnv = parseInt(process.env.MAINTENANCE_BROADCAST_MAX_RETRIES || "", 10);
+  if (Number.isFinite(fromEnv) && fromEnv >= 0 && fromEnv <= 10) return fromEnv;
+
+  const fromJob = parseInt(job && job.maxRetries != null ? job.maxRetries : "3", 10);
+  if (Number.isFinite(fromJob) && fromJob >= 0 && fromJob <= 10) return fromJob;
+
+  return 3;
+}
+
 async function processOneMessageStep(jobId) {
   const fresh = await MaintenanceBroadcastJob.findById(jobId);
   if (!fresh) return;
@@ -527,6 +559,10 @@ async function processOneMessageStep(jobId) {
 }
 
 async function runWorkerTick() {
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
   if (workerInFlight) return;
   workerInFlight = true;
   try {

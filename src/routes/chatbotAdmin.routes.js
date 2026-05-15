@@ -25,7 +25,13 @@ const CoverageArea = require("../models/CoverageArea");
 const Lead = require("../models/Lead");
 const CampaignExecutionLog = require("../models/CampaignExecutionLog");
 
+const {
+  runSeasonalCampaigns,
+} = require("../jobs/seasonalCampaignScheduler");
+
 const router = express.Router();
+
+let seasonalCampaignRunning = false;
 
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "public", "uploads", "campaigns");
 const MulterError = multer.MulterError;
@@ -699,6 +705,63 @@ router.post(
   }
 );
 
+
+/**
+ * POST /api/chatbot-admin/seasonal/run-now
+ * Execução manual segura da campanha sazonal.
+ */
+router.post(
+  "/chatbot-admin/seasonal/run-now",
+  requireAdminAuth,
+  async (req, res) => {
+    try {
+      if (seasonalCampaignRunning) {
+        return res.status(409).json({
+          ok: false,
+          error: "campaign_already_running",
+        });
+      }
+
+      seasonalCampaignRunning = true;
+
+      const adminEmail =
+        (req.admin && req.admin.email) || "unknown_admin";
+
+      console.log("[seasonal_campaign] manual_run_requested", {
+        admin: adminEmail,
+        at: new Date().toISOString(),
+      });
+
+      runSeasonalCampaigns()
+        .then(() => {
+          console.log("[seasonal_campaign] manual_run_finished");
+        })
+        .catch((err) => {
+          console.error(
+            "[seasonal_campaign] manual_run_failed",
+            err?.message || err
+          );
+        })
+        .finally(() => {
+          seasonalCampaignRunning = false;
+        });
+
+      return res.json({
+        ok: true,
+        started: true,
+        message: "Campanha sazonal iniciada em background.",
+      });
+    } catch (e) {
+      seasonalCampaignRunning = false;
+
+      return res.status(500).json({
+        ok: false,
+        error: String(e?.message || e),
+      });
+    }
+  }
+);
+
 router.delete(
   "/chatbot-admin/maintenance-broadcast/jobs/:id",
   requireAdminAuth,
@@ -768,6 +831,79 @@ router.get("/chatbot-admin/automation/logs", requireAdminAuth, async (req, res) 
   }
 });
 
+
+
+
+/**
+ * POST /api/chatbot-admin/billing/test-template
+ * Envia teste individual dos templates financeiros novos.
+ */
+router.post("/chatbot-admin/billing/test-template", requireAdminAuth, async (req, res) => {
+  try {
+    const { sendWhatsAppTemplate } = require("../services/whatsappSend");
+    const templates = require("../config/whatsappTemplates");
+
+    const phone = String(req.body.phone || "").trim();
+    const type = String(req.body.type || "").trim();
+
+    if (!phone) {
+      return res.status(400).json({ ok: false, error: "Telefone obrigatório" });
+    }
+
+    if (!["d2", "reactivation"].includes(type)) {
+      return res.status(400).json({ ok: false, error: "Tipo inválido" });
+    }
+
+    let templateName = "";
+    let components = [];
+
+    if (type === "d2") {
+      templateName = templates.billingOverdueD2;
+      components = [{
+        type: "body",
+        parameters: [
+          { type: "text", text: "Cliente Teste" },
+          { type: "text", text: "89,90" },
+          { type: "text", text: "14/05/2026" },
+          { type: "text", text: "https://exemplo.com/boleto" }
+        ]
+      }];
+    } else {
+      templateName = templates.billingReactivation;
+      components = [{
+        type: "body",
+        parameters: [
+          { type: "text", text: "Cliente Teste" },
+          { type: "text", text: "61 99640-6911" }
+        ]
+      }];
+    }
+
+    if (!templateName) {
+      return res.status(400).json({ ok: false, error: "Template não configurado" });
+    }
+
+    const out = await sendWhatsAppTemplate(
+      phone,
+      templateName,
+      templates.languageCode,
+      components
+    );
+
+    return res.json({
+      ok: true,
+      sent: true,
+      template: templateName,
+      phone,
+      meta: out
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: String(e?.message || e)
+    });
+  }
+});
 
 
 module.exports = router;

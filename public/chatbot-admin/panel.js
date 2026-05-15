@@ -943,6 +943,11 @@
 
     var t = cfg.campaignTexts || {};
     qs("t_aniversarioText").value = t.aniversarioText || "";
+    qs("t_pascoaText").value = t.pascoaText || "";
+    qs("t_diaDasMaesText").value = t.diaDasMaesText || "";
+    qs("t_diaDosPaisText").value = t.diaDosPaisText || "";
+    qs("t_natalText").value = t.natalText || "";
+    qs("t_anoNovoText").value = t.anoNovoText || "";
 
     var a = cfg.campaignActive || {};
     qs("a_aniversario").checked = a.aniversario !== false;
@@ -1007,6 +1012,11 @@ document.querySelectorAll("img.preview").forEach(function (img) {
       },
       campaignTexts: {
         aniversarioText: qs("t_aniversarioText").value.trim(),
+          pascoaText: qs("t_pascoaText").value.trim(),
+          diaDasMaesText: qs("t_diaDasMaesText").value.trim(),
+          diaDosPaisText: qs("t_diaDosPaisText").value.trim(),
+          natalText: qs("t_natalText").value.trim(),
+          anoNovoText: qs("t_anoNovoText").value.trim(),
       },
       campaignActive: {
         aniversario: qs("a_aniversario").checked,
@@ -1172,7 +1182,13 @@ document.querySelectorAll("img.preview").forEach(function (img) {
     try {
       const data = await api("/api/chatbot-admin/automation/status");
 
-      if (!data || !data.ok) return;
+      if (!data || !data.ok) {
+          if (qs("d_totalJobs")) qs("d_totalJobs").textContent = "0";
+          if (qs("d_totalSent")) qs("d_totalSent").textContent = "0";
+          if (qs("d_totalFailed")) qs("d_totalFailed").textContent = "0";
+          if (qs("d_successRate")) qs("d_successRate").textContent = "0%";
+          return;
+        }
 
       // Billing
       if (qs("autoBillingStatus")) {
@@ -1207,22 +1223,28 @@ document.querySelectorAll("img.preview").forEach(function (img) {
           String(data.billing?.maxSends || 0);
       }
 
-        // Indicadores de envio do dashboard
-        const campaignHistory = data.campaignHistory || {};
-        const campaignToday = campaignHistory.today || {};
-        const campaignRows = Array.isArray(campaignHistory.latest)
-          ? campaignHistory.latest
-          : [];
+        // Indicadores reais
+        let totalJobs = 0;
+        let totalSent = 0;
+        let totalFailed = 0;
+        let successRate = 0;
+        let campaignRows = [];
 
-        const totalJobs = Number(campaignToday.executions || 0);
-        const totalSent = Number(campaignToday.totalSent || 0);
-        const totalFailed = Number(campaignToday.totalFailed || 0);
+        try {
+          const overview = await api("/api/chatbot-admin/broadcast/overview");
 
-        const totalProcessed = totalSent + totalFailed;
-
-        const successRate = totalProcessed > 0
-          ? Math.round((totalSent / totalProcessed) * 100)
-          : 0;
+          if (overview && overview.ok) {
+            totalJobs = Number(overview.stats?.totalJobs || 0);
+            totalSent = Number(overview.stats?.totalSent || 0);
+            totalFailed = Number(overview.stats?.totalFailed || 0);
+            successRate = Number(overview.stats?.successRate || 0);
+            campaignRows = Array.isArray(overview.jobs)
+              ? overview.jobs
+              : [];
+          }
+        } catch (e) {
+          console.error("broadcast_overview_error", e);
+        }
 
         if (qs("d_totalJobs")) {
           qs("d_totalJobs").textContent = String(totalJobs);
@@ -1330,6 +1352,43 @@ qs("btnSave").addEventListener("click", save);
           .addEventListener("click", save);
       }
 
+      if (qs("btnRunSeasonalNow")) {
+        qs("btnRunSeasonalNow").addEventListener("click", async function () {
+          const btn = qs("btnRunSeasonalNow");
+
+          try {
+            btn.disabled = true;
+            btn.textContent = "Executando...";
+
+            const data = await api(
+              "/api/chatbot-admin/seasonal/run-now",
+              {
+                method: "POST",
+              }
+            );
+
+            alert(
+              data.message ||
+                "Campanha sazonal iniciada com sucesso."
+            );
+
+            try {
+              loadDashboard();
+            } catch (e) {
+              /* ignore */
+            }
+          } catch (e) {
+            alert(
+              "Erro ao iniciar campanha: " +
+                (e.message || e)
+            );
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "Executar campanha agora";
+          }
+        });
+      }
+
     wirePreviews();
     initDigitalFlyerLinks();
     initCoverageMap();
@@ -1417,6 +1476,65 @@ qs("btnSave").addEventListener("click", save);
 
     if (qs("btnMbPreview")) qs("btnMbPreview").addEventListener("click", maintenanceBroadcastPreview);
     if (qs("btnMbTest")) qs("btnMbTest").addEventListener("click", maintenanceBroadcastTest);
+
+      async function sendBillingTemplateTest(type) {
+
+        try {
+
+          const phone =
+            (qs("mb_testPhone") && qs("mb_testPhone").value || "").trim();
+
+          if (!phone) {
+            alert("Informe telefone de teste");
+            return;
+          }
+
+          const token = localStorage.getItem("dcinf_chatbot_content_token") || "";
+
+          const res = await fetch(
+            API + "/api/chatbot-admin/billing/test-template",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify({
+                phone,
+                type
+              }),
+            }
+          );
+
+          const data = await res.json();
+
+          if (!res.ok || !data.ok) {
+            throw new Error(data.error || "Erro no teste");
+          }
+
+          alert("Template enviado com sucesso!");
+
+          console.log(data);
+
+        } catch (e) {
+
+          console.error(e);
+
+          alert("Erro: " + (e.message || e));
+        }
+      }
+
+      if (qs("btnBillingD2Test")) {
+        qs("btnBillingD2Test").addEventListener("click", function () {
+          sendBillingTemplateTest("d2");
+        });
+      }
+
+      if (qs("btnBillingReactivationTest")) {
+        qs("btnBillingReactivationTest").addEventListener("click", function () {
+          sendBillingTemplateTest("reactivation");
+        });
+      }
     if (qs("btnMbCreate")) qs("btnMbCreate").addEventListener("click", maintenanceCreateBatch);
     if (qs("mb_confirm")) qs("mb_confirm").addEventListener("input", updateMbCreateState);
     if (qs("mb_ciente")) qs("mb_ciente").addEventListener("change", updateMbCreateState);
