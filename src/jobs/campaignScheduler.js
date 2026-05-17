@@ -178,9 +178,12 @@ async function runDailyCampaigns() {
   }
 }
 
-cron.schedule(BIRTHDAY_CRON, runDailyCampaigns);
-console.log(`[campaigns] scheduler_started cron="${BIRTHDAY_CRON}"`);
+function startCampaignScheduler() {
+  cron.schedule(BIRTHDAY_CRON, runDailyCampaigns);
+  console.log(`[campaigns] scheduler_started cron="${BIRTHDAY_CRON}"`);
+}
 
 module.exports = {
   runDailyCampaigns,
+  startCampaignScheduler,
 };

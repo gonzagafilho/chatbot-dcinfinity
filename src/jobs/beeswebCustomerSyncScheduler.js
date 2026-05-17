@@ -34,10 +34,13 @@ async function runSyncScheduler() {
   }
 }
 
-cron.schedule(BEESWEB_SYNC_CRON, runSyncScheduler);
-console.log(`[beesweb_sync] scheduler_started cron="${BEESWEB_SYNC_CRON}"`);
+function startBeeswebSyncScheduler() {
+  cron.schedule(BEESWEB_SYNC_CRON, runSyncScheduler);
+  console.log(`[beesweb_sync] scheduler_started cron="${BEESWEB_SYNC_CRON}"`);
+}
 
 module.exports = {
   BEESWEB_SYNC_CRON,
   runSyncScheduler,
+  startBeeswebSyncScheduler,
 };

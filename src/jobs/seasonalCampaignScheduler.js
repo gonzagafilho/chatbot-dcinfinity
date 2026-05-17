@@ -211,6 +211,10 @@ if (require.main === module) {
     process.exit(1);
   });
 } else {
+  // bootstrap controlado pelo server.cjs
+}
+
+function startSeasonalCampaignScheduler() {
   cron.schedule(SEASONAL_CAMPAIGN_CRON, runSeasonalCampaigns);
   console.log(`[seasonal_campaign] scheduler_started cron="${SEASONAL_CAMPAIGN_CRON}"`);
 }
@@ -218,4 +222,5 @@ if (require.main === module) {
 module.exports = {
   SEASONAL_CAMPAIGN_CRON,
   runSeasonalCampaigns,
+  startSeasonalCampaignScheduler,
 };
