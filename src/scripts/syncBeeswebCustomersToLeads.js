@@ -52,7 +52,11 @@ function isActiveCustomer(c) {
 async function main() {
   console.log("🔄 Iniciando sincronização paginada BeesWeb → Lead");
 
-  await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
+  const externalConnection = mongoose.connection.readyState === 1;
+
+  if (!externalConnection) {
+    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
+  }
 
   const client = createBeeswebClient();
 
@@ -212,7 +216,9 @@ async function main() {
   console.log("🚫 Inativos/arquivados:", inactive);
   console.log("⚠️ Ignorados/duplicados/sem telefone:", ignored);
 
-  await mongoose.disconnect();
+  if (!externalConnection) {
+    await mongoose.disconnect();
+  }
 }
 
 if (require.main === module) {
