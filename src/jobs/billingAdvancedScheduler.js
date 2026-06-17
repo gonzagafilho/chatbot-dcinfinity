@@ -187,7 +187,7 @@ async function sendOverdueD2(lead, charge, mode, templateName, languageCode, now
   ];
 
   if (mode === "live") {
-    await sendWhatsAppTemplate(phone, templateName, languageCode, components);
+    await sendWhatsAppTemplate(phone, templateName, languageCode, components, { origin: "billing_d2" });
     console.log("[billing_advanced][d2] sent", { phone, customerId: lead.beeswebCustomerId, chargeId, dueDate: dueRaw });
   } else {
     console.log("[billing_advanced][d2][test] would_send", { phone, customerId: lead.beeswebCustomerId, chargeId, dueDate: dueRaw });
@@ -246,7 +246,7 @@ async function sendReactivation(lead, mode, templateName, languageCode, now) {
   ];
 
   if (mode === "live") {
-    await sendWhatsAppTemplate(phone, templateName, languageCode, components);
+    await sendWhatsAppTemplate(phone, templateName, languageCode, components, { origin: "billing_reactivation" });
     console.log("[billing_advanced][reactivation] sent", { phone, leadId: String(lead._id) });
   } else {
     console.log("[billing_advanced][reactivation][test] would_send", { phone, leadId: String(lead._id) });

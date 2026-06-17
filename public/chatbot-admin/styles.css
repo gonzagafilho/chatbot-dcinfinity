@@ -1679,3 +1679,41 @@ button:active {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== GUARDIAN ===== */
+
+.sidebar-link-guardian{
+  display:block;
+  text-decoration:none;
+  margin-top:10px;
+  background:#dc2626 !important;
+  color:#fff !important;
+  font-weight:700;
+  border:1px solid rgba(255,255,255,.08);
+}
+
+.sidebar-link-guardian:hover{
+  background:#b91c1c !important;
+  color:#fff !important;
+  transform:translateY(-1px);
+  transition:all .15s ease;
+  box-shadow:0 8px 18px rgba(220,38,38,.28);
+}
+
+/* Histórico de Envios - aba dedicada */
+.history-badge--failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+#send_history {
+  margin-top: 14px;
+}
+
+#tab-history .dash-metrics {
+  margin-top: 14px;
+}
+
+#tab-history .history-filter {
+  white-space: nowrap;
+}

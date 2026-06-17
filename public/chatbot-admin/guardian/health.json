@@ -1,0 +1,46 @@
+{
+  "updatedAt": "2026-06-17 10:32:01",
+  "host": "servidor-dcnet",
+  "pm2": {
+    "ok": true,
+    "raw": "[{\"pid\":1407,\"name\":\"pm2-logrotate\",\"pm2_env\":{\"pmx_module\":true,\"cwd\":\"/home/servidor-dcnet/.pm2/modules/pm2-logrotate/node_modules/pm2-logrotate\",\"namespace\":\"default\",\"kill_retry_time\":100,\"windowsHide\":true,\"username\":\"servidor-dcnet\",\"treekill\":true,\"automation\":true,\"pmx\":true,\"instance_var\":\"NODE_APP_INSTANCE\",\"autorestart\":true,\"autostart\":true,\"vizion\":true,\"merge_logs\":true,\"max_memory_restart\":524288000,\"env\":{\"pm2-logrotate\":\"{\\\"max_size\\\":\\\"10M\\\",\\\"retain\\\":\\\"7\\\",\\\"compress\\\":\\\"true\\\",\\\"dateFormat\\\":\\\"YYYY-MM-DD_HH-mm-ss\\\",\\\"workerInterval\\\":\\\"30\\\",\\\"rotateInterval\\\":\\\"0 0 * * *\\\",\\\"rotateModule\\\":true}\",\"max_size\":\"10M\",\"retain\":\"7\",\"compress\":\"true\",\"dateFormat\":\"YYYY-MM-DD_HH-mm-ss\",\"workerInterval\":\"30\",\"rotateInterval\":\"0 0 * * *\",\"rotateModule\":true,\"PWD\":\"/home/servidor-dcnet/.pm2/modules/pm2-logrotate/node_modules/pm2-logrotate\",\"PM2_JSON_PROCESSING\":\"true\",\"PM2_INTERACTOR_PROCESSING\":\"true\",\"PM2_USAGE\":\"CLI\",\"PM2_HOME\":\"/home/servidor-dcnet/.pm2\",\"MEMORY_PRESSURE_WRITE\":\"c29tZSAyMDAwMDAgMjAwMDAwMAA=\",\"MEMORY_PRESSURE_WATCH\":\"/sys/fs/cgroup/system.slice/pm2-servidor-dcnet.service/memory.pressure\",\"SYSTEMD_EXEC_PID\":\"1092\",\"JOURNAL_STREAM\":\"8:10913\",\"INVOCATION_ID\":\"64b18ba7779c4b7ab16d717b6f933943\",\"SHELL\":\"/bin/bash\",\"HOME\":\"/home/servidor-dcnet\",\"LOGNAME\":\"servidor-dcnet\",\"USER\":\"servidor-dcnet\",\"PIDFILE\":\"/home/servidor-dcnet/.pm2/pm2.pid\",\"PATH\":\"/home/servidor-dcnet/.vscode-server/cli/servers/Stable-6534f6ba7604bf324f94cc9a590727f39a4af040/server/bin/remote-cli:/home/servidor-dcnet/.nvm/versions/node/v20.19.6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/servidor-dcnet/.nvm/versions/node/v20.19.6/bin:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\",\"LANG\":\"en_US.UTF-8\",\"unique_id\":\"59063e64-e2d9-4e45-8650-37c39e5d7d4e\"},\"name\":\"pm2-logrotate\",\"node_args\":[],\"pm_exec_path\":\"/home/servidor-dcnet/.pm2/modules/pm2-logrotate/node_modules/pm2-logrotate/app.js\",\"pm_cwd\":\"/home/servidor-dcnet/.pm2/modules/pm2-logrotate/node_modules/pm2-logrotate\",\"exec_interpreter\":\"node\",\"exec_mode\":\"fork_mode\",\"instances\":1,\"pm_out_log_path\":\"/home/servidor-dcnet/.pm2/logs/pm2-logrotate-out.log\",\"pm_err_log_path\":\"/home/servidor-dcnet/.pm2/logs/pm2-logrotate-error.log\",\"pm_pid_path\":\"/home/servidor-dcnet/.pm2/pids/pm2-logrotate-0.pid\",\"km_link\":false,\"vizion_running\":false,\"NODE_APP_INSTANCE\":0,\"pm2-logrotate\":\"{\\\"max_size\\\":\\\"10M\\\",\\\"retain\\\":\\\"7\\\",\\\"compress\\\":\\\"true\\\",\\\"dateFormat\\\":\\\"YYYY-MM-DD_HH-mm-ss\\\",\\\"workerInterval\\\":\\\"30\\\",\\\"rotateInterval\\\":\\\"0 0 * * *\\\",\\\"rotateModule\\\":true}\",\"max_size\":\"10M\",\"retain\":\"7\",\"compress\":\"true\",\"dateFormat\":\"YYYY-MM-DD_HH-mm-ss\",\"workerInterval\":\"30\",\"rotateInterval\":\"0 0 * * *\",\"rotateModule\":true,\"PWD\":\"/home/servidor-dcnet/.pm2/modules/pm2-logrotate/node_modules/pm2-logrotate\",\"PM2_JSON_PROCESSING\":\"true\",\"PM2_INTERACTOR_PROCESSING\":\"true\",\"PM2_USAGE\":\"CLI\",\"PM2_HOME\":\"/home/servidor-dcnet/.pm2\",\"MEMORY_PRESSURE_WRITE\":\"c29tZSAyMDAwMDAgMjAwMDAwMAA=\",\"MEMORY_PRESSURE_WATCH\":\"/sys/fs/cgroup/system.slice/pm2-servidor-dcnet.service/memory.pressure\",\"SYSTEMD_EXEC_PID\":\"1092\",\"JOURNAL_STREAM\":\"8:10913\",\"INVOCATION_ID\":\"64b18ba7779c4b7ab16d717b6f933943\",\"SHELL\":\"/bin/bash\",\"HOME\":\"/home/servidor-dcnet\",\"LOGNAME\":\"servidor-dcnet\",\"USER\":\"servidor-dcnet\",\"PIDFILE\":\"/home/servidor-dcnet/.pm2/pm2.pid\",\"PATH\":\"/home/servidor-dcnet/.vscode-server/cli/servers/Stable-6534f6ba7604bf324f94cc9a590727f39a4af040/server/bin/remote-cli:/home/servidor-dcnet/.nvm/versions/node/v20.19.6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/servidor-dcnet/.nvm/versions/node/v20.19.6/bin:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\",\"LANG\":\"en_US.UTF-8\",\"unique_id\":\"59063e64-e2d9-4e45-8650-37c39e5d7d4e\",\"status\":\"online\",\"pm_uptime\":1781544253177,\"axm_actions\":[{\"action_name\":\"km:heapdump\",\"action_type\":\"internal\",\"arity\":2},{\"action_name\":\"km:cpu:profiling:start\",\"action_type\":\"internal\",\"arity\":2},{\"action_name\":\"km:cpu:profiling:stop\",\"action_type\":\"internal\",\"arity\":1},{\"action_name\":\"km:heap:sampling:start\",\"action_type\":\"internal\",\"arity\":2},{\"action_name\":\"km:heap:sampling:stop\",\"action_type\":\"internal\",\"arity\":1},{\"action_name\":\"list watched logs\",\"opts\":null,\"arity\":1},{\"action_name\":\"list all logs\",\"opts\":null,\"arity\":1}],\"axm_monitor\":{\"Used Heap Size\":{\"value\":\"12.13\",\"type\":\"internal/v8/heap/used\",\"unit\":\"MiB\",\"historic\":true},\"Heap Usage\":{\"value\":86.12,\"type\":\"internal/v8/heap/usage\",\"unit\":\"%\",\"historic\":true},\"Heap Size\":{\"value\":\"14.09\",\"type\":\"internal/v8/heap/total\",\"unit\":\"MiB\",\"historic\":true},\"Files count\":{\"alert\":{},\"type\":\"Files count\",\"historic\":true,\"agg_type\":\"avg\",\"value\":360},\"Global logs size\":{\"alert\":{},\"type\":\"Global logs size\",\"historic\":true,\"agg_type\":\"avg\",\"value\":\"52.54 MB\"},\"Event Loop Latency p95\":{\"value\":\"1.26\",\"type\":\"internal/libuv/latency/p95\",\"unit\":\"ms\",\"historic\":true},\"Event Loop Latency\":{\"value\":\"0.3"
+  },
+  "mongo": {
+    "ok": true,
+    "port": "27017"
+  },
+  "postgres": {
+    "ok": true,
+    "port": "5432"
+  },
+  "nginx": {
+    "ok": true
+  },
+  "docker": {
+    "ok": true,
+    "raw": "CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES"
+  },
+  "internet": {
+    "ok": true
+  },
+  "chatbot": {
+    "ok": true
+  },
+  "xpdcnet": {
+    "ok": true
+  },
+  "smartponto": {
+    "ok": true
+  },
+  "nexora": {
+    "ok": true
+  },
+  "metrics": {
+    "cpu": 2,
+    "ram": 35,
+    "disk": 33,
+    "load1": 0.53,
+    "load5": 0.41,
+    "load15": 0.28
+  }
+}

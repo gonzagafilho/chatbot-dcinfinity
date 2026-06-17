@@ -24,6 +24,7 @@ const MaintenanceBroadcastJob = require("../models/MaintenanceBroadcastJob");
 const CoverageArea = require("../models/CoverageArea");
 const Lead = require("../models/Lead");
 const CampaignExecutionLog = require("../models/CampaignExecutionLog");
+const WaMessage = require("../models/WaMessage");
 
 const {
   runSeasonalCampaigns,
@@ -906,7 +907,35 @@ router.post("/chatbot-admin/billing/test-template", requireAdminAuth, async (req
 });
 
 
-module.exports = router;
+
+/**
+ * DELETE /api/chatbot-admin/delivery-history
+ * Limpa somente histórico de envios WhatsApp com wamid.
+ */
+router.delete("/chatbot-admin/delivery-history", requireAdminAuth, async (req, res) => {
+  try {
+    if (req.body?.confirm !== "EXCLUIR HISTORICO") {
+      return res.status(400).json({ ok: false, error: "confirm_required" });
+    }
+
+    const result = await WaMessage.deleteMany({
+      direction: "outbound",
+      wamid: { $exists: true, $ne: "" },
+    });
+
+    return res.json({
+      ok: true,
+      deleted: result.deletedCount || 0,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: String(e?.message || e),
+    });
+  }
+});
+
+
 
 /**
  * GET /api/chatbot-admin/automation/logs-real
@@ -1001,3 +1030,68 @@ router.get("/chatbot-admin/automation/logs-real", requireAdminAuth, async (req, 
   }
 });
 
+
+
+/**
+ * GET /api/chatbot-admin/delivery-history
+ */
+router.get("/chatbot-admin/delivery-history", requireAdminAuth, async (req, res) => {
+  try {
+    const rows = await WaMessage.find({
+      direction: "outbound",
+      wamid: { $exists: true, $ne: "" },
+    })
+      .sort({ createdAt: -1 })
+      .limit(80)
+      .lean();
+
+    return res.json({
+      ok: true,
+      rows,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: String(e?.message || e),
+    });
+  }
+});
+
+
+
+/**
+ * DELETE item único
+ */
+router.delete("/chatbot-admin/delivery-history/item/:id", requireAdminAuth, async (req, res) => {
+  try {
+    await WaMessage.deleteOne({ _id: req.params.id });
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+/**
+ * DELETE múltiplos itens
+ */
+router.delete("/chatbot-admin/delivery-history/items", requireAdminAuth, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+
+    await WaMessage.deleteMany({
+      _id: { $in: ids }
+    });
+
+    return res.json({
+      ok: true,
+      deleted: ids.length
+    });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: String(e?.message || e)
+    });
+  }
+});
+
+module.exports = router;

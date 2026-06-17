@@ -1,0 +1,232 @@
+{
+  "updatedAt": "2026-06-17 10:32:01",
+  "total": 28,
+  "online": 28,
+  "offline": 0,
+  "apps": [
+    {
+      "name": "pm2-logrotate",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253177,
+      "memoryMb": 70.3,
+      "cpu": 0
+    },
+    {
+      "name": "api-dcnet",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253364,
+      "memoryMb": 104.1,
+      "cpu": 1.3
+    },
+    {
+      "name": "dcsolar-api",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253366,
+      "memoryMb": 76.4,
+      "cpu": 0
+    },
+    {
+      "name": "dcsolar-site",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253518,
+      "memoryMb": 65.6,
+      "cpu": 0
+    },
+    {
+      "name": "novastack-site",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253519,
+      "memoryMb": 59.8,
+      "cpu": 0
+    },
+    {
+      "name": "smartponto-api",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253531,
+      "memoryMb": 104.6,
+      "cpu": 0
+    },
+    {
+      "name": "workponto-app",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253653,
+      "memoryMb": 75.2,
+      "cpu": 0
+    },
+    {
+      "name": "workponto-admin",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253654,
+      "memoryMb": 143.3,
+      "cpu": 0
+    },
+    {
+      "name": "smartponto-site",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253773,
+      "memoryMb": 155.5,
+      "cpu": 0
+    },
+    {
+      "name": "nexora-backend",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253774,
+      "memoryMb": 58.6,
+      "cpu": 0
+    },
+    {
+      "name": "nexora-frontend",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253873,
+      "memoryMb": 58.5,
+      "cpu": 0
+    },
+    {
+      "name": "nexora-core-api-3031",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253874,
+      "memoryMb": 59.5,
+      "cpu": 0
+    },
+    {
+      "name": "xpdcnet-admin",
+      "status": "online",
+      "restart": 18,
+      "uptime": 1781699628196,
+      "memoryMb": 56.2,
+      "cpu": 0
+    },
+    {
+      "name": "xpdcnet-worker-finance",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253901,
+      "memoryMb": 75.4,
+      "cpu": 0
+    },
+    {
+      "name": "xpdcnet-worker-trust",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253902,
+      "memoryMb": 75.1,
+      "cpu": 0
+    },
+    {
+      "name": "dcnet-gamer-frontend",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253921,
+      "memoryMb": 75.7,
+      "cpu": 0
+    },
+    {
+      "name": "dcnet-gamer-backend",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253922,
+      "memoryMb": 77.0,
+      "cpu": 1.3
+    },
+    {
+      "name": "chatbot-dcinfinity",
+      "status": "online",
+      "restart": 2,
+      "uptime": 1781702874776,
+      "memoryMb": 103.7,
+      "cpu": 1.3
+    },
+    {
+      "name": "nexora-financeiro-api",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544253983,
+      "memoryMb": 107.6,
+      "cpu": 0
+    },
+    {
+      "name": "nexora-financeiro-web",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544254061,
+      "memoryMb": 74.2,
+      "cpu": 0
+    },
+    {
+      "name": "xpdcnet-worker-stale",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544254063,
+      "memoryMb": 76.7,
+      "cpu": 0
+    },
+    {
+      "name": "xpdcnet-api",
+      "status": "online",
+      "restart": 12,
+      "uptime": 1781700906657,
+      "memoryMb": 106.9,
+      "cpu": 0
+    },
+    {
+      "name": "xpdcnet-worker-sync",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544254102,
+      "memoryMb": 79.3,
+      "cpu": 0
+    },
+    {
+      "name": "xpdcnet-worker-telemetry-snapshot",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544254144,
+      "memoryMb": 86.8,
+      "cpu": 0
+    },
+    {
+      "name": "dcnet-palpites-api",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544254145,
+      "memoryMb": 105.8,
+      "cpu": 0
+    },
+    {
+      "name": "dcnet-palpites-web",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544254184,
+      "memoryMb": 74.9,
+      "cpu": 0
+    },
+    {
+      "name": "dcnet-palpites-live-worker",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781544254228,
+      "memoryMb": 88.2,
+      "cpu": 0
+    },
+    {
+      "name": "dcnet-speedtest",
+      "status": "online",
+      "restart": 0,
+      "uptime": 1781625453797,
+      "memoryMb": 69.6,
+      "cpu": 0
+    }
+  ]
+}

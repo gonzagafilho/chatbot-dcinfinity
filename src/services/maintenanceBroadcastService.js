@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 
 const MaintenanceBroadcastJob = require("../models/MaintenanceBroadcastJob");
 const Lead = require("../models/Lead");
+const WaMessage = require("../models/WaMessage");
 const { sendWhatsAppText, sendWhatsAppImage } = require("./whatsappSend");
 const {
   collectAllCustomers,
@@ -257,6 +258,28 @@ async function sendTestBroadcast(reqBody, adminEmail) {
     sent = await sendWhatsAppImage(d, imageUrl, text);
   } else {
     sent = await sendWhatsAppText(d, text, {});
+  }
+
+  try {
+    await WaMessage.create({
+      tenant: n.tenant || "dcnet",
+      channel: "whatsapp",
+      origin: "maintenance_broadcast_test",
+      direction: "outbound",
+      wamid: sent?.messages?.[0]?.id || "",
+      from: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+      to: d,
+      text,
+      raw: sent,
+      deliveryStatus: "sent",
+      metaStatus: "sent",
+      metaStatusAt: new Date(),
+    });
+  } catch (e) {
+    console.error(
+      "❌ maintenance-broadcast/test save WaMessage:",
+      e?.message || e
+    );
   }
 
   try {

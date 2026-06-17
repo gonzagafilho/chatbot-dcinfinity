@@ -1,3 +1,4 @@
+const WaMessage = require("../models/WaMessage");
 function getWhatsAppConfig() {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_TOKEN;
@@ -35,7 +36,95 @@ async function fetchWithRetry(url, options, retries = 3, timeoutMs = 10000) {
   }
 }
 
-async function sendWhatsAppPayload(payload) {
+
+function inferOriginFromPayload(payload, options = {}) {
+  if (options && options.origin) return String(options.origin);
+
+  const type = String(payload?.type || "").toLowerCase();
+
+  if (type === "template") {
+    const name = String(payload?.template?.name || "").toLowerCase();
+
+    if (name.includes("overdue") || name.includes("d2")) return "billing_d2";
+    if (name.includes("d3") || name.includes("reminder")) return "billing_d3";
+    if (name.includes("reactiv")) return "billing_reactivation";
+    if (name.includes("birthday")) return "birthday";
+    if (name.includes("promocao") || name.includes("promo")) return "campaign";
+    if (name.includes("parceria")) return "partner_campaign";
+
+    return "template";
+  }
+
+  if (type === "image") {
+    const caption = String(payload?.image?.caption || "").toLowerCase();
+
+    if (caption.includes("feliz aniversário") || caption.includes("anivers")) return "birthday";
+    if (caption.includes("parceria")) return "partner_campaign";
+    if (caption.includes("promo")) return "campaign";
+
+    return "campaign_image";
+  }
+
+  if (type === "text") {
+    const body = String(payload?.text?.body || "").toLowerCase();
+
+    if (body.includes("feliz aniversário") || body.includes("anivers")) return "birthday";
+    if (body.includes("d+2")) return "billing_d2";
+    if (body.includes("d-3")) return "billing_d3";
+    if (body.includes("reativa")) return "billing_reactivation";
+    if (body.includes("promo")) return "campaign";
+    if (body.includes("parceria")) return "partner_campaign";
+
+    return "whatsapp_text";
+  }
+
+  if (type === "interactive") return "interactive";
+
+  return "whatsapp";
+}
+
+function buildHistoryTextFromPayload(payload) {
+  const type = String(payload?.type || "").toLowerCase();
+
+  if (type === "text") return String(payload?.text?.body || "");
+  if (type === "image") return String(payload?.image?.caption || payload?.image?.link || "");
+  if (type === "template") return "[template] " + String(payload?.template?.name || "");
+  if (type === "interactive") {
+    return "[interactive:" + String(payload?.interactive?.type || "unknown") + "] " +
+      String(payload?.interactive?.body?.text || "");
+  }
+
+  return "[" + type + "]";
+}
+
+async function saveOutboundHistory(payload, sent, options = {}) {
+  try {
+    const wamid = sent?.messages?.[0]?.id || "";
+    if (!wamid) return;
+
+    await WaMessage.create({
+      tenant: options.tenant || "dcnet",
+      channel: "whatsapp",
+      origin: inferOriginFromPayload(payload, options),
+      direction: "outbound",
+      wamid,
+      from: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+      to: String(payload?.to || ""),
+      text: buildHistoryTextFromPayload(payload),
+      raw: sent,
+      deliveryStatus: "sent",
+      metaStatus: "sent",
+      metaStatusAt: new Date(),
+    });
+  } catch (e) {
+    if (String(e?.code) !== "11000") {
+      console.error("❌ saveOutboundHistory:", e?.message || e);
+    }
+  }
+}
+
+
+async function sendWhatsAppPayload(payload, options = {}) {
   const { phoneNumberId, token } = getWhatsAppConfig();
   const url = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
 
@@ -59,6 +148,8 @@ async function sendWhatsAppPayload(payload) {
     console.error("❌ WhatsApp send error:", data);
     throw new Error(`WhatsApp send failed: ${resp.status}`);
   }
+
+  await saveOutboundHistory(payload, data, options);
 
   return data;
 }
@@ -87,7 +178,7 @@ async function sendWhatsAppText(to, message, options) {
  * @param {string} imageUrl
  * @param {string} caption
  */
-async function sendWhatsAppImage(to, imageUrl, caption) {
+async function sendWhatsAppImage(to, imageUrl, caption, options = {}) {
   return sendWhatsAppPayload({
     messaging_product: "whatsapp",
     to,
@@ -96,7 +187,7 @@ async function sendWhatsAppImage(to, imageUrl, caption) {
       link: imageUrl,
       caption,
     },
-  });
+  }, options || {});
 }
 
 /**

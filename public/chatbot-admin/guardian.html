@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DC NET Guardian NOC</title>
+  <style>
+    :root{--bg:#0b1526;--panel:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--ok:#16a34a;--bad:#dc2626;--warn:#d97706;--blue:#2563eb}
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#081326,#0f1e33);font-family:Arial,Helvetica,sans-serif;color:var(--text)}
+    header{padding:18px 24px;color:#fff;display:flex;justify-content:space-between;gap:16px;align-items:center}
+    h1{margin:0;font-size:24px} h2{margin:0 0 14px;font-size:16px}
+    .sub{color:#64748b;font-size:14px;margin-top:4px} header .sub{color:#94a3b8}
+    .btn{background:linear-gradient(90deg,#0ea5e9,#2563eb);color:#fff;border-radius:14px;padding:12px 18px;text-decoration:none;font-weight:900;box-shadow:0 10px 24px rgba(37,99,235,.35)}
+    main{padding:0 18px 24px;max-width:1500px;margin:0 auto}
+    .shell{background:#f8fafc;border-radius:34px;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.28)}
+    .card{background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid var(--line);border-radius:30px;padding:24px;box-shadow:0 14px 35px rgba(15,23,42,.08)}
+    .grid5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:18px;margin-top:12px}
+    .layout{display:grid;grid-template-columns:1.05fr 1.25fr;gap:18px;margin-top:18px}
+    .bottom{display:grid;grid-template-columns:1.1fr .8fr .9fr 1fr;gap:18px;margin-top:18px}
+    .label{font-size:14px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:.6px}
+    .value{font-size:34px;font-weight:900;color:#0f172a}
+    .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+    .pill{display:inline-block;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900}
+    .pill.ok{background:#dcfce7;color:#166534}.pill.bad{background:#fee2e2;color:#991b1b}.pill.warn{background:#fef3c7;color:#92400e}
+    .metric-card{min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center}
+    .gauge-wrap{position:relative;width:140px;height:140px;margin-top:18px}
+    .gauge{width:140px;height:140px;transform:rotate(-90deg)}
+    .g-bg{fill:none;stroke:#e5e7eb;stroke-width:10}
+    .g-fill{fill:none;stroke-width:10;stroke-linecap:round;stroke-dasharray:289;stroke-dashoffset:289;transition:stroke-dashoffset .9s ease, opacity .4s ease}
+    .g-fill.cpu{stroke:#3b82f6}.g-fill.ram{stroke:#22c55e}.g-fill.disk{stroke:#f59e0b}.g-fill.load{stroke:#a855f7}
+    .g-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;color:#0f172a;letter-spacing:-1px}
+    .noc-chart{width:100%;height:230px;background:#fff;border:1px solid var(--line);border-radius:24px;margin-top:12px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;color:#334155;border:1px solid var(--line);border-radius:22px;padding:14px;max-height:260px;overflow:auto}
+    table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:22px;overflow:hidden}
+    th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
+    th{color:#64748b;font-size:11px;text-transform:uppercase;background:#f8fafc}
+    .timeline{display:flex;flex-direction:column;gap:12px}
+    .timeline-item{border:1px solid var(--line);border-left:6px solid var(--ok);border-radius:24px;padding:16px;background:linear-gradient(180deg,#fff,#f8fafc);box-shadow:0 8px 22px rgba(15,23,42,.06)}
+    .timeline-item.warn{border-left-color:var(--warn)}.timeline-item.bad{border-left-color:var(--bad)}
+    .timeline-time{font-size:12px;color:#64748b;font-weight:900}.timeline-title{font-weight:900;margin-top:5px}.timeline-detail{font-size:13px;color:#64748b;margin-top:5px;white-space:pre-wrap}
+    @media(max-width:1050px){.layout,.bottom{grid-template-columns:1fr}.grid5{grid-template-columns:1fr 1fr}}
+    @media(max-width:560px){header{flex-direction:column;align-items:flex-start}.grid5{grid-template-columns:1fr}main{padding:0 10px 16px}.shell{padding:12px;border-radius:24px}.card{border-radius:24px}}
+  
+
+    .g-value{
+      position:absolute !important;
+      inset:0 !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      text-align:center !important;
+      font-size:28px !important;
+      font-weight:900 !important;
+      color:#0f172a !important;
+      letter-spacing:-1px !important;
+      margin:0 !important;
+      padding:0 !important;
+      line-height:1.2 !important;
+    }
+
+
+
+
+    
+
+
+
+
+    .load-lines{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      line-height:1;
+      margin-top:2px;
+    }
+
+    .load-lines div{
+      display:flex;
+      align-items:baseline;
+      gap:8px;
+    }
+
+    .load-lines strong{
+      font-size:18px;
+      font-weight:800;
+      color:#0f172a;
+      min-width:48px;
+      text-align:right;
+      letter-spacing:-0.5px;
+    }
+
+    .load-lines span{
+      font-size:11px;
+      font-weight:700;
+      color:#64748b;
+      min-width:24px;
+      text-align:left;
+      text-transform:uppercase;
+    }
+
+
+
+    .operation-status{
+      margin-top:14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      border-radius:28px;
+      padding:22px 24px;
+      background:linear-gradient(90deg,#ecfdf5,#ffffff);
+      border:1px solid #bbf7d0;
+    }
+
+    .operation-title{
+      font-size:28px;
+      font-weight:950;
+      letter-spacing:-1px;
+      color:#166534;
+    }
+
+    .operation-sub{
+      color:#64748b;
+      margin-top:4px;
+      font-weight:700;
+    }
+
+    .operation-badge{
+      border-radius:999px;
+      padding:10px 14px;
+      font-size:13px;
+      font-weight:950;
+      background:#dcfce7;
+      color:#166534;
+      white-space:nowrap;
+    }
+
+    .operation-status.warn{
+      background:linear-gradient(90deg,#fffbeb,#ffffff);
+      border-color:#fde68a;
+    }
+
+    .operation-status.warn .operation-title{color:#92400e}
+    .operation-status.warn .operation-badge{background:#fef3c7;color:#92400e}
+
+    .operation-status.bad{
+      background:linear-gradient(90deg,#fef2f2,#ffffff);
+      border-color:#fecaca;
+    }
+
+    .operation-status.bad .operation-title{color:#991b1b}
+    .operation-status.bad .operation-badge{background:#fee2e2;color:#991b1b}
+
+    @media(max-width:700px){
+      .operation-status{flex-direction:column;align-items:flex-start}
+      .operation-title{font-size:22px}
+    }
+
+
+    .availability-grid{
+      display:grid;
+      grid-template-columns:repeat(5,minmax(0,1fr));
+      gap:14px;
+      margin-top:14px;
+    }
+
+    .availability-card{
+      min-height:118px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+
+    .availability-card .value{
+      font-size:30px;
+      margin-top:8px;
+    }
+
+    @media(max-width:1050px){
+      .availability-grid{grid-template-columns:1fr 1fr}
+    }
+
+    @media(max-width:560px){
+      .availability-grid{grid-template-columns:1fr}
+    }
+
+
+
+    .g-fill.level-ok{
+      stroke:#22c55e !important;
+      filter:drop-shadow(0 0 5px rgba(34,197,94,.45));
+    }
+
+    .g-fill.level-warn{
+      stroke:#f59e0b !important;
+      filter:drop-shadow(0 0 5px rgba(245,158,11,.45));
+    }
+
+    .g-fill.level-bad{
+      stroke:#ef4444 !important;
+      filter:drop-shadow(0 0 6px rgba(239,68,68,.55));
+    }
+
+
+
+    .g-legend{
+      margin-top:12px;
+      padding:7px 12px;
+      border-radius:999px;
+      background:#dcfce7;
+      color:#166534;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+
+    .g-legend.warn{
+      background:#fef3c7;
+      color:#92400e;
+    }
+
+    .g-legend.bad{
+      background:#fee2e2;
+      color:#991b1b;
+    }
+
+
+    .latency-grid{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+      margin-top:14px;
+    }
+
+    .latency-card{
+      min-height:120px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+
+    .latency-ms{
+      font-size:30px;
+      font-weight:950;
+      margin-top:8px;
+      color:#0f172a;
+    }
+
+    .latency-state{
+      margin-top:8px;
+      font-size:12px;
+      font-weight:900;
+      color:#166534;
+    }
+
+    @media(max-width:900px){
+      .latency-grid{grid-template-columns:1fr 1fr}
+    }
+
+    @media(max-width:560px){
+      .latency-grid{grid-template-columns:1fr}
+    }
+
+
+    .infra-map{
+      position:relative;
+      display:grid;
+      grid-template-columns:1fr 320px 1fr;
+      gap:34px;
+      align-items:center;
+      margin-top:22px;
+      min-height:320px;
+    }
+
+    .infra-column{
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      position:relative;
+      z-index:2;
+    }
+
+    .infra-node{
+      position:relative;
+      border:1px solid var(--line);
+      border-radius:22px;
+      padding:18px 18px;
+      background:linear-gradient(180deg,#ffffff,#f8fafc);
+      box-shadow:0 10px 24px rgba(15,23,42,.06);
+      display:flex;
+      align-items:center;
+      gap:14px;
+      min-height:84px;
+    }
+
+    .infra-dot{
+      width:18px;
+      height:18px;
+      border-radius:999px;
+      background:#22c55e;
+      box-shadow:0 0 0 8px rgba(34,197,94,.12);
+      position:relative;
+      z-index:3;
+    }
+
+    .infra-name{
+      font-size:15px;
+      font-weight:950;
+      color:#0f172a;
+    }
+
+    .infra-desc{
+      margin-top:4px;
+      font-size:12px;
+      color:#64748b;
+      font-weight:700;
+    }
+
+    .infra-core{
+      position:relative;
+      z-index:5;
+      width:320px;
+      height:140px;
+      border-radius:32px;
+      background:linear-gradient(180deg,#eff6ff,#ffffff);
+      border:2px solid #bfdbfe;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 20px 60px rgba(37,99,235,.14);
+      animation:corePulse 2.8s ease-in-out infinite;
+    }
+
+    .infra-core-title{
+      font-size:22px;
+      font-weight:950;
+      color:#1d4ed8;
+      letter-spacing:-1px;
+    }
+
+    .infra-core-sub{
+      margin-top:8px;
+      font-size:13px;
+      color:#64748b;
+      font-weight:800;
+      text-align:center;
+      max-width:220px;
+      line-height:1.4;
+    }
+
+    .infra-map::before{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:62%;
+      height:4px;
+      transform:translate(-50%,-50%);
+      background:linear-gradient(90deg,#93c5fd,#2563eb,#93c5fd);
+      border-radius:999px;
+      opacity:.85;
+      z-index:1;
+    }
+
+    .infra-column.left .infra-node::after{
+      content:"";
+      position:absolute;
+      right:-34px;
+      top:50%;
+      width:34px;
+      height:3px;
+      background:#93c5fd;
+      transform:translateY(-50%);
+    }
+
+    .infra-column.right .infra-node::before{
+      content:"";
+      position:absolute;
+      left:-34px;
+      top:50%;
+      width:34px;
+      height:3px;
+      background:#93c5fd;
+      transform:translateY(-50%);
+    }
+
+    @keyframes corePulse{
+      0%,100%{
+        box-shadow:0 20px 60px rgba(37,99,235,.14);
+      }
+      50%{
+        box-shadow:0 28px 90px rgba(37,99,235,.22);
+      }
+    }
+
+    @media(max-width:1100px){
+      .infra-map{
+        grid-template-columns:1fr;
+      }
+
+      .infra-map::before{
+        display:none;
+      }
+
+      .infra-column.left .infra-node::after,
+      .infra-column.right .infra-node::before{
+        display:none;
+      }
+
+      .infra-core{
+        width:100%;
+      }
+    }
+      50%{box-shadow:0 18px 50px rgba(37,99,235,.22)}
+    }
+
+    @media(max-width:900px){
+      .infra-core::before,
+      .infra-core::after,
+      .infra-column:first-child .infra-node::after,
+      .infra-column:last-child .infra-node::before{
+        display:none;
+      }
+    }
+
+
+    .infra-map::after{
+      content:"";
+      position:absolute;
+      left:19%;
+      top:50%;
+      width:10px;
+      height:10px;
+      transform:translateY(-50%);
+      border-radius:999px;
+      background:#2563eb;
+      box-shadow:0 0 14px rgba(37,99,235,.75);
+      animation:dataFlow 3s linear infinite;
+      z-index:4;
+    }
+
+    .infra-core .flow-dot{
+      position:absolute;
+      width:9px;
+      height:9px;
+      border-radius:999px;
+      background:#38bdf8;
+      box-shadow:0 0 14px rgba(56,189,248,.8);
+      top:50%;
+      transform:translateY(-50%);
+    }
+
+    .infra-core .flow-dot.left{
+      left:-46px;
+      animation:flowLeft 2.4s linear infinite;
+    }
+
+    .infra-core .flow-dot.right{
+      right:-46px;
+      animation:flowRight 2.4s linear infinite;
+    }
+
+    @keyframes dataFlow{
+      0%{left:19%;opacity:0}
+      12%{opacity:1}
+      50%{opacity:1}
+      88%{opacity:1}
+      100%{left:81%;opacity:0}
+    }
+
+    @keyframes flowLeft{
+      0%{transform:translate(-30px,-50%);opacity:0}
+      30%{opacity:1}
+      100%{transform:translate(30px,-50%);opacity:0}
+    }
+
+    @keyframes flowRight{
+      0%{transform:translate(30px,-50%);opacity:0}
+      30%{opacity:1}
+      100%{transform:translate(-30px,-50%);opacity:0}
+    }
+
+    @media(max-width:1100px){
+      .infra-map::after,
+      .infra-core .flow-dot{
+        display:none;
+      }
+    }
+
+
+    .pm2-toolbar{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:18px;
+      align-items:center;
+    }
+
+    .pm2-input,
+    .pm2-select{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px 14px;
+      font-weight:800;
+      color:#0f172a;
+      background:#ffffff;
+      outline:none;
+    }
+
+    .pm2-input{
+      min-width:260px;
+      flex:1;
+    }
+
+    .pm2-select{
+      min-width:170px;
+    }
+
+    .pm2-row-warn td{
+      background:#fffbeb;
+    }
+
+    .pm2-row-bad td{
+      background:#fef2f2;
+    }
+
+
+    .executive-summary{
+      margin-top:18px;
+      border-radius:32px;
+      padding:28px;
+      background:linear-gradient(135deg,#eff6ff,#ffffff);
+      border:1px solid #bfdbfe;
+      box-shadow:0 20px 55px rgba(37,99,235,.10);
+    }
+
+    .executive-title{
+      font-size:30px;
+      font-weight:950;
+      letter-spacing:-1px;
+      color:#1d4ed8;
+    }
+
+    .executive-sub{
+      margin-top:10px;
+      font-size:15px;
+      color:#475569;
+      line-height:1.7;
+      font-weight:700;
+      max-width:1100px;
+    }
+
+    .executive-bad{
+      background:linear-gradient(135deg,#fef2f2,#ffffff);
+      border-color:#fecaca;
+    }
+
+    .executive-bad .executive-title{
+      color:#dc2626;
+    }
+
+
+    .presentation-toggle{
+      background:#ffffff;
+      color:#1d4ed8;
+      border:1px solid #bfdbfe;
+      border-radius:14px;
+      padding:12px 18px;
+      font-weight:950;
+      cursor:pointer;
+      box-shadow:0 10px 24px rgba(37,99,235,.18);
+    }
+
+    body.presentation-mode header{
+      padding:12px 20px;
+    }
+
+    body.presentation-mode .shell{
+      max-width:100%;
+      border-radius:0;
+      min-height:calc(100vh - 72px);
+    }
+
+    body.presentation-mode .bottom,
+    body.presentation-mode #pm2Table,
+    body.presentation-mode #eventsBody{
+      display:none;
+    }
+
+    body.presentation-mode table{
+      display:none;
+    }
+
+    body.presentation-mode .card{
+      box-shadow:0 12px 35px rgba(15,23,42,.08);
+    }
+
+    body.presentation-mode .layout{
+      grid-template-columns:1fr 1fr;
+    }
+
+    body.presentation-mode .infra-map{
+      min-height:280px;
+    }
+
+    body.presentation-mode .metric-card{
+      min-height:200px;
+    }
+
+
+    .guardian-toast-stack{
+      position:fixed;
+      top:22px;
+      right:22px;
+      width:360px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      z-index:999999;
+      pointer-events:none;
+    }
+
+    .guardian-toast{
+      border-radius:22px;
+      padding:18px 18px 16px;
+      background:linear-gradient(180deg,#111827,#0f172a);
+      color:#fff;
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 24px 70px rgba(0,0,0,.45);
+      animation:guardianToastIn .35s ease;
+      pointer-events:auto;
+      overflow:hidden;
+      position:relative;
+    }
+
+    .guardian-toast::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:0;
+      bottom:0;
+      width:6px;
+      background:#22c55e;
+    }
+
+    .guardian-toast.warn::before{
+      background:#f59e0b;
+    }
+
+    .guardian-toast.bad::before{
+      background:#ef4444;
+    }
+
+    .guardian-toast-title{
+      font-size:14px;
+      font-weight:950;
+      letter-spacing:.5px;
+      text-transform:uppercase;
+    }
+
+    .guardian-toast-message{
+      margin-top:8px;
+      font-size:15px;
+      line-height:1.4;
+      color:#dbeafe;
+      font-weight:700;
+    }
+
+    .guardian-toast-time{
+      margin-top:10px;
+      font-size:11px;
+      color:#94a3b8;
+      font-weight:800;
+    }
+
+    @keyframes guardianToastIn{
+      from{
+        opacity:0;
+        transform:translateY(-16px) scale(.96);
+      }
+      to{
+        opacity:1;
+        transform:translateY(0) scale(1);
+      }
+    }
+
+    @keyframes guardianToastOut{
+      to{
+        opacity:0;
+        transform:translateX(30px);
+      }
+    }
+
+</style>
+</head>
+<body>
+<header>
+  <div><h1>🛡️ DC NET Guardian NOC</h1><div class="sub">Central Operacional · Monitoramento em Tempo Real · Proteção Automática</div></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="presentationToggle" class="presentation-toggle">Modo apresentação</button><a class="btn" href="/chatbot-admin/">← Voltar ao painel</a></div>
+</header>
+
+<main><div class="shell">
+  <div id="statusBanner" class="card">Carregando...</div>
+
+  
+  <div id="executiveSummary" class="executive-summary">
+    <div id="executiveTitle" class="executive-title">
+      Operação estável
+    </div>
+
+    <div id="executiveSub" class="executive-sub">
+      Todos os sistemas estão operando normalmente.
+    </div>
+  </div>
+
+
+  <div id="operationStatus" class="operation-status">
+    <div>
+      <div id="operationTitle" class="operation-title">Operação estável</div>
+      <div id="operationSub" class="operation-sub">Todos os sistemas estão funcionando normalmente.</div>
+    </div>
+    <div id="operationBadge" class="operation-badge">SAUDÁVEL</div>
+  </div>
+
+
+  <div class="availability-grid">
+    <div class="card availability-card"><div class="label">Disponibilidade</div><div id="availabilityPct" class="value ok">--</div></div>
+    <div class="card availability-card"><div class="label">Serviços monitorados</div><div id="monitoredServices" class="value">--</div></div>
+    <div class="card availability-card"><div class="label">Proteções ativas</div><div id="activeProtections" class="value bad">--</div></div>
+    <div class="card availability-card"><div class="label">Eventos críticos</div><div id="criticalEvents" class="value bad">--</div></div>
+    <div class="card availability-card"><div class="label">Atualização</div><div id="freshnessStatus" class="value ok" style="font-size:22px">Ao vivo</div></div>
+  </div>
+
+  <div class="grid5">
+    <div class="card metric-card"><div class="label">CPU</div><div class="gauge-wrap"><svg class="gauge" viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="46"></circle><circle id="cpuGauge" class="g-fill cpu" cx="60" cy="60" r="46"></circle></svg><div id="cpu" class="g-value">--%</div></div><div id="cpuLegend" class="g-legend">Normal</div></div>
+    <div class="card metric-card"><div class="label">RAM</div><div class="gauge-wrap"><svg class="gauge" viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="46"></circle><circle id="ramGauge" class="g-fill ram" cx="60" cy="60" r="46"></circle></svg><div id="ram" class="g-value">--%</div></div><div id="ramLegend" class="g-legend">Saudável</div></div>
+    <div class="card metric-card"><div class="label">Disco</div><div class="gauge-wrap"><svg class="gauge" viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="46"></circle><circle id="diskGauge" class="g-fill disk" cx="60" cy="60" r="46"></circle></svg><div id="disk" class="g-value">--%</div></div><div id="diskLegend" class="g-legend">Espaço OK</div></div>
+    <div class="card metric-card"><div class="label">Carga</div><div class="gauge-wrap"><svg class="gauge" viewBox="0 0 120 120"><circle class="g-bg" cx="60" cy="60" r="46"></circle><circle id="loadGauge" class="g-fill load" cx="60" cy="60" r="46"></circle></svg><div id="load" class="g-value" style="font-size:18px">--</div></div><div id="loadLegend" class="g-legend">Estável</div></div>
+    <div class="card metric-card"><div class="label">Última atualização</div><div id="lastUpdate" class="value" style="font-size:20px;margin-top:55px">--</div></div>
+  </div>
+
+  
+  <div class="card" style="margin-top:18px">
+    <h2>Latência da plataforma</h2>
+    <div class="sub">Tempo de resposta dos principais pontos monitorados.</div>
+
+    <div class="latency-grid">
+      <div class="card latency-card">
+        <div class="label">Internet</div>
+        <div id="latInternet" class="latency-ms">-- ms</div>
+        <div id="latInternetState" class="latency-state">--</div>
+      </div>
+
+      <div class="card latency-card">
+        <div class="label">DNS</div>
+        <div id="latDns" class="latency-ms">-- ms</div>
+        <div id="latDnsState" class="latency-state">--</div>
+      </div>
+
+      <div class="card latency-card">
+        <div class="label">Chatbot HTTPS</div>
+        <div id="latChatbot" class="latency-ms">-- ms</div>
+        <div id="latChatbotState" class="latency-state">--</div>
+      </div>
+
+      <div class="card latency-card">
+        <div class="label">API Local</div>
+        <div id="latLocal" class="latency-ms">-- ms</div>
+        <div id="latLocalState" class="latency-state">--</div>
+      </div>
+    </div>
+  </div>
+
+
+  
+  <div class="card" style="margin-top:18px">
+    <h2>Disponibilidade do servidor</h2>
+    <div class="sub">Tempo online e última atualização do monitoramento.</div>
+
+    <div class="latency-grid">
+      <div class="card latency-card">
+        <div class="label">Tempo online</div>
+        <div id="serverUptime" class="latency-ms">--</div>
+        <div class="latency-state ok">Servidor ativo</div>
+      </div>
+
+      <div class="card latency-card">
+        <div class="label">Ligado desde</div>
+        <div id="serverBootAt" class="latency-ms" style="font-size:20px">--</div>
+        <div class="latency-state ok">Inicialização</div>
+      </div>
+
+      <div class="card latency-card">
+        <div class="label">Última checagem</div>
+        <div id="guardianLastCheck" class="latency-ms" style="font-size:20px">--</div>
+        <div id="guardianFreshness" class="latency-state ok">Ao vivo</div>
+      </div>
+
+      <div class="card latency-card">
+        <div class="label">Estado do monitor</div>
+        <div id="guardianRuntimeState" class="latency-ms ok" style="font-size:24px">Ativo</div>
+        <div class="latency-state ok">Guardian operacional</div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="layout">
+    <div class="card"><h2>NOC em tempo real</h2><div class="sub">Acompanhamento em tempo real da estabilidade da plataforma.</div><canvas id="nocChart" class="noc-chart" width="1000" height="230"></canvas>
+      <div class="grid5" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+        <div class="card"><div class="label">Online</div><div id="svcOnline" class="value ok">--</div></div>
+        <div class="card"><div class="label">Atenção</div><div id="svcOffline" class="value bad">--</div></div>
+        <div class="card"><div class="label">Atividades</div><div id="eventCount" class="value warn">--</div></div>
+        <div class="card"><div class="label">Proteções</div><div id="blockCount" class="value bad">--</div></div>
+      </div>
+    </div>
+    <div class="card"><h2>Histórico operacional</h2><div class="sub">Atualizações automáticas da plataforma e monitoramento operacional.</div><div id="socTimeline" class="timeline" style="margin-top:12px"></div></div>
+  </div>
+
+  
+  <div class="card" style="margin-top:18px">
+    <h2>Aplicações PM2</h2>
+    <div class="sub">Monitoramento realtime das aplicações hospedadas.</div>
+
+    <div class="availability-grid" style="margin-top:18px">
+      <div class="card availability-card">
+        <div class="label">Aplicações online</div>
+        <div id="pm2Online" class="value ok">--</div>
+      </div>
+
+      <div class="card availability-card">
+        <div class="label">Aplicações offline</div>
+        <div id="pm2Offline" class="value bad">--</div>
+      </div>
+
+      <div class="card availability-card">
+        <div class="label">Total monitorado</div>
+        <div id="pm2Total" class="value">--</div>
+      </div>
+
+      <div class="card availability-card">
+        <div class="label">Estado geral</div>
+        <div id="pm2State" class="value ok" style="font-size:24px">Operacional</div>
+      </div>
+    </div>
+
+    
+    <div class="pm2-toolbar">
+      <input id="pm2Search" class="pm2-input" placeholder="Buscar aplicação..." />
+      <select id="pm2Filter" class="pm2-select">
+        <option value="all">Todos os status</option>
+        <option value="online">Somente online</option>
+        <option value="offline">Somente offline</option>
+        <option value="restart">Mais reiniciados</option>
+        <option value="memory">Maior uso de RAM</option>
+      </select>
+    </div>
+
+    <div style="margin-top:18px;overflow:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Aplicação</th>
+            <th>Status</th>
+            <th>RAM</th>
+            <th>CPU</th>
+            <th>Restarts</th>
+          </tr>
+        </thead>
+        <tbody id="pm2Table"></tbody>
+      </table>
+    </div>
+  </div>
+
+
+
+  <div class="card" style="margin-top:18px">
+    <h2>Mapa da infraestrutura</h2>
+    <div class="sub">Visão operacional dos principais serviços conectados ao servidor.</div>
+
+    <div class="infra-map">
+      <div class="infra-column left">
+        <div id="nodeInternet" class="infra-node">
+          <span class="infra-dot"></span>
+          <div>
+            <div class="infra-name">Internet</div>
+            <div class="infra-desc">Conectividade externa</div>
+          </div>
+        </div>
+
+        <div id="nodeNginx" class="infra-node">
+          <span class="infra-dot"></span>
+          <div>
+            <div class="infra-name">Nginx</div>
+            <div class="infra-desc">Entrada dos domínios</div>
+          </div>
+        </div>
+
+        <div id="nodeMongo" class="infra-node">
+          <span class="infra-dot"></span>
+          <div>
+            <div class="infra-name">MongoDB</div>
+            <div class="infra-desc">Banco operacional</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="infra-core">
+        <span class="flow-dot left"></span><span class="flow-dot right"></span><div class="infra-core-title">Guardian NOC</div>
+        <div class="infra-core-sub">Monitoramento central em tempo real</div>
+      </div>
+
+      <div class="infra-column right">
+        <div id="nodeChatbot" class="infra-node">
+          <span class="infra-dot"></span>
+          <div>
+            <div class="infra-name">Chatbot</div>
+            <div class="infra-desc">Atendimento e automações</div>
+          </div>
+        </div>
+
+        <div id="nodeXpdcnet" class="infra-node">
+          <span class="infra-dot"></span>
+          <div>
+            <div class="infra-name">XPDCNET</div>
+            <div class="infra-desc">Operação ISP / APIs</div>
+          </div>
+        </div>
+
+        <div id="nodeNexora" class="infra-node">
+          <span class="infra-dot"></span>
+          <div>
+            <div class="infra-name">Nexora</div>
+            <div class="infra-desc">Produtos SaaS</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+<div class="bottom">
+    <div class="card"><h2>Status da plataforma</h2><table><thead><tr><th>Serviço</th><th>Status</th></tr></thead><tbody id="healthBody"></tbody></table></div>
+    <div class="card"><h2>Containers e serviços</h2><div id="dockerStatus"></div><pre id="dockerRaw">Carregando...</pre></div>
+    <div class="card"><h2>Segurança do sistema</h2><pre id="processesRaw">Carregando...</pre></div>
+    <div class="card"><h2>Proteções ativas</h2><div id="blockedStatus"></div><pre id="blockedIpsRaw">Carregando...</pre></div>
+  </div>
+
+  <div class="card" style="margin-top:18px"><h2>Atividades recentes</h2><table><thead><tr><th>Data</th><th>Tipo</th><th>Gravidade</th><th>Ação</th><th>Detalhe</th></tr></thead><tbody id="eventsBody"></tbody></table></div>
+</div></main>
+
+
+<div id="guardianToastStack" class="guardian-toast-stack"></div>
+<audio id="guardianAlertAudio" preload="auto">
+  <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+</audio>
+
+<script src="/chatbot-admin/guardian-live.js"></script>
+
+</body>
+</html>

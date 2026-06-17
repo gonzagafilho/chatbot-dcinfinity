@@ -143,7 +143,7 @@ async function runDailyCampaigns() {
           segment === "birthday" && String(birthdayCaptionTpl.text || "").trim()
             ? String(birthdayCaptionTpl.text).trim()
             : buildBirthdayMessage(lead.name);
-        await sendWhatsAppImage(phone, imageUrl, mensagem);
+        await sendWhatsAppImage(phone, imageUrl, mensagem, { origin: "birthday" });
 
         await Lead.updateOne(
           { _id: lead._id },

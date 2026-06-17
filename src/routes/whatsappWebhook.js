@@ -391,6 +391,54 @@ router.post("/webhook/whatsapp", async (req, res) => {
     const change = entry?.changes?.[0];
     const value = change?.value;
 
+    const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
+    if (statuses.length) {
+      for (const st of statuses) {
+        const wamid = String(st.id || "").trim();
+        const status = String(st.status || "").trim().toLowerCase();
+        const timestampMs = st.timestamp ? Number(st.timestamp) * 1000 : Date.now();
+        const statusAt = new Date(timestampMs);
+        const errors = Array.isArray(st.errors) ? st.errors : [];
+
+        if (!wamid || !status) continue;
+
+        const set = {
+          deliveryStatus: status,
+          metaStatus: status,
+          metaStatusAt: statusAt,
+          raw: req.body,
+        };
+
+        if (status === "delivered") set.deliveredAt = statusAt;
+        if (status === "read") set.readAt = statusAt;
+        if (status === "failed") {
+          set.failedAt = statusAt;
+          set.metaError = errors.length ? errors : st;
+        }
+
+        try {
+          const updated = await WaMessage.findOneAndUpdate(
+            { wamid },
+            { $set: set },
+            { new: true }
+          ).lean();
+
+          console.log("[whatsapp status]", {
+            wamid,
+            status,
+            updated: !!updated,
+            recipient_id: st.recipient_id || "",
+            errors: errors.length,
+            errorDetails: errors.length ? errors : undefined,
+          });
+        } catch (e) {
+          console.error("❌ webhook status update:", e?.message || e);
+        }
+      }
+
+      return;
+    }
+
     const msg = value?.messages?.[0];
     if (!msg) return;
 

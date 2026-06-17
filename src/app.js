@@ -18,6 +18,8 @@ const handoffRoutes = require("./routes/handoff.routes");
 const adminRoutes = require("./routes/admin.routes");
 const chatbotAdminRoutes = require("./routes/chatbotAdmin.routes");
 const chatbotAdminLogsRealRoutes = require("./routes/chatbotAdmin.logsReal.route");
+const guardianInternalRoutes = require("./routes/guardianInternal.routes");
+const guardianCleanupRoutes = require("./routes/guardianCleanup.routes");
 const tenantAuthRoutes = require("./routes/tenantAuth.routes.cjs");
 const tenantUsersRoutes = require("./routes/tenantUsers.routes.cjs");
 
@@ -146,7 +148,22 @@ app.get("/dcnet", (req, res) => {
 
 app.use("/assets", express.static(path.join(__dirname, "..", "public", "assets")));
 // uploads gerados pelo painel (ex.: campanhas)
-app.use("/uploads", express.static(path.join(__dirname, "..", "public", "uploads")));
+app.use("/uploads", (req, res, next) => {
+  res.removeHeader("Cross-Origin-Resource-Policy");
+  res.removeHeader("Cross-Origin-Opener-Policy");
+  res.removeHeader("Content-Security-Policy");
+
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+
+  next();
+});
+
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "..", "public", "uploads"))
+);
 
 // ✅ Widget público (IMPORTANTE: esse caminho é a raiz do projeto /public/widget)
   app.use("/widget", express.static(path.join(__dirname, "..", "public", "widget")));
@@ -172,6 +189,7 @@ app.use("/api", adminRoutes);
 app.use("/api", adminTenantsRoutes); // ✅ novo
 app.use("/api", chatbotAdminRoutes);
 app.use("/api", chatbotAdminLogsRealRoutes);
+app.use("/api/guardian", guardianInternalRoutes);
 
 app.use("/api/tenant", tenantAuthRoutes);          // login, me
 app.use("/api/tenant", tenantChatRoutes);          // leads, messages, assign, send

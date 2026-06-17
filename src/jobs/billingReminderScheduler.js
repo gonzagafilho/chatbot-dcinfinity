@@ -177,7 +177,7 @@ async function processLeadReminder(lead, charge, mode, templateName, languageCod
       languageCode,
     });
   } else if (mode === "live") {
-    await sendWhatsAppTemplate(phone, templateName, languageCode, components);
+    await sendWhatsAppTemplate(phone, templateName, languageCode, components, { origin: "billing_d3" });
     console.log("[billing_reminder] sent", { phone, customerId: lead.beeswebCustomerId, chargeId, dueDate: dueRaw });
   }
 

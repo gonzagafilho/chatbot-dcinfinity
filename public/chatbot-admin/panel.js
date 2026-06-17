@@ -906,6 +906,14 @@
       if (active) panel.removeAttribute("hidden");
       else panel.setAttribute("hidden", "hidden");
     });
+    if (tabId === "history") {
+      try {
+        loadDeliveryHistoryReal();
+      } catch (e) {
+        console.error("history_load_error", e);
+      }
+    }
+
     if (tabId === "campaigns") {
       setTimeout(function () {
         try {
@@ -1618,3 +1626,252 @@ qs("btnSave").addEventListener("click", save);
     }
   });
 })();
+
+
+async function loadDeliveryHistoryReal() {
+  try {
+    
+const token = localStorage.getItem("dcinf_chatbot_content_token") || "";
+
+const resp = await fetch("/api/chatbot-admin/delivery-history", {
+  headers: {
+    Authorization: "Bearer " + token
+  }
+});
+
+const out = await resp.json();
+
+console.log("HISTORY_API_OUT", out);
+
+
+    const rows = Array.isArray(out?.rows) ? out.rows : [];
+
+    const root = document.getElementById("send_history");
+
+    if (!root) return;
+
+    if (!rows.length) {
+      root.innerHTML = '<div class="muted">Nenhum envio encontrado.</div>';
+      return;
+    }
+
+      let historyVisibleCount = 15;
+
+const visibleRows = rows.slice(0, historyVisibleCount);
+
+      function esc(v) {
+        return String(v || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      function originName(v) {
+        const raw = String(v || "envio").toLowerCase();
+        if (raw.includes("d3")) return "Cobrança D-3";
+        if (raw.includes("d2")) return "Cobrança D+2";
+        if (raw.includes("reativ")) return "Reativação";
+        if (raw.includes("campaign")) return "Campanha";
+        if (raw.includes("test")) return "Teste";
+        return "Envio";
+      }
+
+      function statusClass(s) {
+        s = String(s || "").toLowerCase();
+        if (s === "read") return "history-badge history-badge--live";
+        if (s === "delivered") return "history-badge history-badge--test";
+        if (s === "failed") return "history-badge history-badge--failed";
+        return "history-badge";
+      }
+
+      root.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 14px">
+          <div style="font-weight:800;color:#111827">Últimos envios</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button"
+              class="btn2"
+              onclick="deleteSelectedHistory()"
+              style="background:#fff7ed;color:#9a3412;border:1px solid #fdba74">
+              Excluir selecionados
+            </button>
+
+            <button type="button"
+              class="btn2"
+              id="btnClearHistory"
+              data-action="clear-history"
+              style="background:#fff1f2;color:#991b1b;border:1px solid #fecdd3">
+              Excluir histórico
+            </button>
+          </div>
+          <div class="muted">Exibindo ${visibleRows.length} de ${rows.length}</div>
+        </div>
+
+        <div style="overflow:auto;border:1px solid #e5e7eb;border-radius:14px;background:#fff">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:860px">
+            <thead>
+              <tr style="background:#f9fafb;color:#6b7280;text-align:left">
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb;width:40px">
+                  <input type="checkbox" id="historyCheckAll">
+                </th>
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb;width:90px">Ações</th>
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb">Tipo</th>
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb">Data/Hora</th>
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb">Status</th>
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb">Destino</th>
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb">Webhook</th>
+                <th style="padding:11px 12px;border-bottom:1px solid #e5e7eb">Mensagem</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${visibleRows.map(function (r) {
+                const status = String(r.deliveryStatus || r.metaStatus || "sent").toLowerCase();
+                const when = r.createdAt ? new Date(r.createdAt).toLocaleString("pt-BR") : "-";
+                const phone = String(r.to || "");
+                const msg = esc(String(r.text || "").replace(/\s+/g, " ").slice(0, 70)) + (String(r.text || "").length > 70 ? "..." : "");
+
+                return `
+                  <tr style="border-bottom:1px solid #f1f5f9">
+                    <td style="padding:10px 12px">
+                      <input type="checkbox" class="history-check" value="${r._id || ""}">
+                    </td>
+
+                    <td style="padding:10px 12px;white-space:nowrap">
+                      <button type="button"
+                        data-action="delete-one" data-id="${r._id || ""}"
+                        style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:16px">
+                        🗑
+                      </button>
+                    </td>
+
+                    <td style="padding:10px 12px;font-weight:700;color:#111827">${originName(r.origin)}</td>
+                    <td style="padding:10px 12px;color:#374151;white-space:nowrap">${when}</td>
+                    <td style="padding:10px 12px"><span class="${statusClass(status)}">${status.toUpperCase()}</span></td>
+                    <td style="padding:10px 12px;color:#374151;white-space:nowrap">${phone}</td>
+                    <td style="padding:10px 12px;color:#374151">${r.wamid ? "OK" : "-"}</td>
+                    <td style="padding:10px 12px;color:#4b5563;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${msg}</td>
+                  </tr>
+                `;
+
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+
+        ${rows.length > historyVisibleCount ? `
+          <div style="display:flex;justify-content:center;margin-top:14px">
+            <button type="button" class="btn2" id="btnHistoryMoreInfo">
+              Mostrar mais 15
+            </button>
+          </div>
+        ` : ""}
+      `;
+
+
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+
+
+async function clearDeliveryHistoryReal() {
+  const phrase = prompt("Para excluir o histórico de envios, digite: EXCLUIR HISTORICO");
+  if (phrase !== "EXCLUIR HISTORICO") return;
+
+  const token = localStorage.getItem("dcinf_chatbot_content_token") || "";
+
+  const resp = await fetch("/api/chatbot-admin/delivery-history", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token
+    },
+    body: JSON.stringify({ confirm: "EXCLUIR HISTORICO" })
+  });
+
+  const out = await resp.json();
+
+  if (!out.ok) {
+    alert("Erro ao excluir histórico: " + (out.error || "erro desconhecido"));
+    return;
+  }
+
+  window.__dcnetHistoryVisibleCount = 15;
+  alert("Histórico excluído: " + out.deleted + " registros.");
+  loadDeliveryHistoryReal();
+}
+
+
+async function deleteSingleHistory(id) {
+  if (!id) return;
+
+  const ok = confirm("Excluir este registro?");
+  if (!ok) return;
+
+  const token = localStorage.getItem("dcinf_chatbot_content_token") || "";
+
+  await fetch("/api/chatbot-admin/delivery-history/item/" + id, {
+    method: "DELETE",
+    headers: {
+      Authorization: "Bearer " + token
+    }
+  });
+
+  loadDeliveryHistoryReal();
+}
+
+async function deleteSelectedHistory() {
+  const checks = Array.from(document.querySelectorAll(".history-check:checked"));
+
+  if (!checks.length) {
+    alert("Nenhum item selecionado.");
+    return;
+  }
+
+  const ids = checks.map(el => el.value).filter(Boolean);
+
+  const ok = confirm("Excluir " + ids.length + " registros?");
+  if (!ok) return;
+
+  const token = localStorage.getItem("dcinf_chatbot_content_token") || "";
+
+  await fetch("/api/chatbot-admin/delivery-history/items", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token
+    },
+    body: JSON.stringify({ ids })
+  });
+
+  loadDeliveryHistoryReal();
+}
+
+document.addEventListener("change", function (e) {
+  if (e.target && e.target.id === "historyCheckAll") {
+    document.querySelectorAll(".history-check").forEach((el) => {
+      el.checked = e.target.checked;
+    });
+  }
+});
+
+
+document.addEventListener("click", function (e) {
+  const more = e.target.closest("#btnHistoryMoreInfo");
+  if (more) {
+    window.__dcnetHistoryVisibleCount = Number(window.__dcnetHistoryVisibleCount || 15) + 15;
+    loadDeliveryHistoryReal();
+    return;
+  }
+
+  const clearBtn = e.target.closest('[data-action="clear-history"]');
+  if (clearBtn) {
+    clearDeliveryHistoryReal();
+    return;
+  }
+
+  const delOne = e.target.closest('[data-action="delete-one"]');
+  if (delOne) {
+    deleteSingleHistory(delOne.getAttribute("data-id"));
+    return;
+  }
+});
+
+// history_click_delegate_installed

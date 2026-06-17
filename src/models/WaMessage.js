@@ -26,6 +26,16 @@ const WaMessageSchema = new mongoose.Schema(
     page: { type: String, default: "" },
 
     raw: { type: mongoose.Schema.Types.Mixed },
+
+    deliveryStatus: { type: String, default: null, index: true },
+    metaStatus: { type: String, default: null, index: true },
+    metaStatusAt: { type: Date, default: null },
+
+    deliveredAt: { type: Date, default: null },
+    readAt: { type: Date, default: null },
+    failedAt: { type: Date, default: null },
+
+    metaError: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );

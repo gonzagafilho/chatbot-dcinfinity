@@ -24,6 +24,15 @@
         <button type="button" class="sidebar-link" data-tab="messages" role="tab" aria-selected="false" aria-controls="tab-messages" id="tab-btn-messages">Mensagens</button>
         <button type="button" class="sidebar-link" data-tab="maintenance" role="tab" aria-selected="false" aria-controls="tab-maintenance" id="tab-btn-maintenance">Manutenção</button>
         <button type="button" class="sidebar-link" data-tab="beesweb" role="tab" aria-selected="false" aria-controls="tab-beesweb" id="tab-btn-beesweb">Envio em massa</button>
+          <button type="button" class="sidebar-link" data-tab="history" role="tab" aria-selected="false" aria-controls="tab-history" id="tab-btn-history">Histórico</button>
+          <a
+            href="/chatbot-admin/guardian.html"
+            class="sidebar-link sidebar-link-guardian"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            🛡️ Guardian / Segurança
+          </a>
       </nav>
     </aside>
 
@@ -369,7 +378,13 @@
               <label>ETA (ISO opcional, ex.: 2026-12-31T18:00:00.000Z)</label><input id="m_eta" type="text" placeholder="vazio = sem ETA" />
             </section>
 
-            <section class="tab-panel" id="tab-beesweb" role="tabpanel" aria-labelledby="tab-btn-beesweb" hidden>
+                          <section class="tab-panel" id="tab-history" role="tabpanel" aria-labelledby="tab-btn-history" hidden>
+                <h2 class="section-title">Histórico de Envios</h2>
+                <p class="muted">Lista real dos envios registrados pelo sistema: campanhas, testes, D+2, D-3 e reativação.</p>
+                <div class="d-history" id="send_history">Carregue o painel após login…</div>
+              </section>
+
+<section class="tab-panel" id="tab-beesweb" role="tabpanel" aria-labelledby="tab-btn-beesweb" hidden>
               <h2 class="section-title">Envio de mensagens para clientes</h2>
               <p class="beesweb-lead">Comunique seus clientes com avisos importantes, promoções ou informações de atendimento.</p>
               <div class="callout callout--secure" role="status">

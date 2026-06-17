@@ -11,8 +11,26 @@ const SEASONAL_CAMPAIGN_CRON = process.env.SEASONAL_CAMPAIGN_CRON || "0 8 * * *"
 const IGNORED_CAMPAIGN_PHONES = new Set([
   "5561996406911",
   "5561991374910",
+  "556191374910",
   "5561999999999",
 ]);
+
+function digitsOnly(v) {
+  return String(v || "").replace(/\D/g, "");
+}
+
+function isIgnoredCampaignPhone(phone) {
+  const p = digitsOnly(phone);
+
+  if (IGNORED_CAMPAIGN_PHONES.has(p)) {
+    return true;
+  }
+
+  return (
+    p.endsWith("996406911") ||
+    p.endsWith("91374910")
+  );
+}
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -160,9 +178,9 @@ async function runSeasonalCampaigns() {
 
     try {
       if (cfg.imageUrl) {
-        await sendWhatsAppImage(phone, cfg.imageUrl, message);
+        await sendWhatsAppImage(phone, cfg.imageUrl, message, { origin: "seasonal_campaign" });
       } else {
-        await sendWhatsAppText(phone, message);
+        await sendWhatsAppText(phone, message, { origin: "seasonal_campaign" });
       }
 
       await Lead.updateOne(
