@@ -197,7 +197,7 @@ async function sendWhatsAppImage(to, imageUrl, caption, options = {}) {
  * @param {string} languageCode
  * @param {Array<object>} [components]
  */
-async function sendWhatsAppTemplate(to, templateName, languageCode, components) {
+async function sendWhatsAppTemplate(to, templateName, languageCode, components, options = {}) {
   const name = String(templateName || "").trim();
   const lang = String(languageCode || "pt_BR").trim() || "pt_BR";
   if (!name) throw new Error("sendWhatsAppTemplate: templateName vazio");
@@ -219,7 +219,7 @@ async function sendWhatsAppTemplate(to, templateName, languageCode, components) 
   }
 
   try {
-    const sent = await sendWhatsAppPayload(payload);
+    const sent = await sendWhatsAppPayload(payload, options || {});
     console.log("[whatsapp_template] sent", { to, templateName: name, languageCode: lang });
     return sent;
   } catch (e) {

@@ -3,7 +3,7 @@
 const cron = require("node-cron");
 const Lead = require("../models/Lead");
 const CampaignExecutionLog = require("../models/CampaignExecutionLog");
-const { sendWhatsAppImage } = require("../services/whatsappSend");
+const { sendWhatsAppTemplate } = require("../services/whatsappSend");
 const {
   getBirthdayCampaignImageUrl,
   getBirthdayCampaignCaptionTemplate,
@@ -135,15 +135,41 @@ async function runDailyCampaigns() {
       }
 
       try {
+        const templateName = process.env.WA_TEMPLATE_BIRTHDAY || "dcnet_birthday_card";
+        const languageCode = process.env.WA_TEMPLATE_BIRTHDAY_LANG || "pt_BR";
+
+        const customerName = String(lead.name || "Cliente").trim() || "Cliente";
         const imageUrl = birthdayImageUrl || String(CAMPAIGN_IMAGE_NEW_YEAR || "").trim();
+
         if (!imageUrl) {
-          throw new Error("birthday_campaign_image_missing");
+          throw new Error("birthday_template_header_image_missing");
         }
-        const mensagem =
-          segment === "birthday" && String(birthdayCaptionTpl.text || "").trim()
-            ? String(birthdayCaptionTpl.text).trim()
-            : buildBirthdayMessage(lead.name);
-        await sendWhatsAppImage(phone, imageUrl, mensagem, { origin: "birthday" });
+
+        const components = [
+          {
+            type: "header",
+            parameters: [
+              {
+                type: "image",
+                image: { link: imageUrl }
+              }
+            ]
+          },
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: customerName }
+            ]
+          }
+        ];
+
+        await sendWhatsAppTemplate(
+          phone,
+          templateName,
+          languageCode,
+          components,
+          { origin: "birthday" }
+        );
 
         await Lead.updateOne(
           { _id: lead._id },
