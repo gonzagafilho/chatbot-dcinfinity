@@ -1821,6 +1821,24 @@ let conversationsPollTimer = null;
     box.scrollTop = box.scrollHeight;
   }
 
+  function renderConversationAiBlock(l) {
+    var nextSteps = Array.isArray(l.aiNextSteps) ? l.aiNextSteps : [];
+    var analyzed = l.aiAnalyzedAt ? new Date(l.aiAnalyzedAt).toLocaleString("pt-BR") : "Ainda nao analisada";
+    return '<div class="crm-ai-operational">' +
+      '<div class="crm-ai-operational__head"><h3>IA Operacional</h3><button type="button" id="btnConversationAnalyzeAi">Analisar com IA</button></div>' +
+      '<div class="crm-ai-grid">' +
+        '<div><b>Intencao</b><span>' + convEsc(l.aiIntent || '-') + '</span></div>' +
+        '<div><b>Sentimento</b><span>' + convEsc(l.aiSentiment || '-') + '</span></div>' +
+        '<div><b>Prioridade sugerida</b><span>' + convEsc(l.aiSuggestedPriority ? conversationPriorityLabel(l.aiSuggestedPriority) : '-') + '</span></div>' +
+        '<div><b>Setor sugerido</b><span>' + convEsc(l.aiSuggestedDepartment ? conversationDepartmentLabel(l.aiSuggestedDepartment) : '-') + '</span></div>' +
+      '</div>' +
+      '<p><b>Resumo</b><span>' + convEsc(l.aiSummary || 'Clique em Analisar com IA para gerar um resumo operacional.') + '</span></p>' +
+      (l.aiSuggestedReply ? '<p><b>Resposta sugerida</b><span>' + convEsc(l.aiSuggestedReply) + '</span></p>' : '') +
+      '<div class="crm-ai-next"><b>Proximos passos</b>' + (nextSteps.length ? nextSteps.map(function (step) { return '<span>' + convEsc(step) + '</span>'; }).join('') : '<span>-</span>') + '</div>' +
+      '<small>Ultima analise: ' + convEsc(analyzed) + '</small>' +
+    '</div>';
+  }
+
   function conversationOperatorOptions(selected) {
     var current = String(selected || "");
     var opts = ['<option value="">Fila sem responsavel</option>'];
@@ -1869,6 +1887,7 @@ let conversationsPollTimer = null;
       '<div><b>Última campanha</b><span>' + convEsc(l.lastCampaign || '-') + '</span></div>' +
       '<div><b>Templates enviados</b><span id="conversationTemplateCount">-</span></div>' +
       '</div>' +
+      renderConversationAiBlock(l) +
       '<div class="crm-queue-controls">' +
         '<label>Prioridade<select id="conversationPrioritySelect"><option value="low" ' + (l.priority === 'low' ? 'selected' : '') + '>Baixa</option><option value="normal" ' + (!l.priority || l.priority === 'normal' ? 'selected' : '') + '>Normal</option><option value="high" ' + (l.priority === 'high' ? 'selected' : '') + '>Alta</option><option value="urgent" ' + (l.priority === 'urgent' ? 'selected' : '') + '>Urgente</option></select></label>' +
         '<label>Setor<select id="conversationDepartmentSelect"><option value="comercial" ' + (l.department === 'comercial' ? 'selected' : '') + '>Comercial</option><option value="financeiro" ' + (l.department === 'financeiro' ? 'selected' : '') + '>Financeiro</option><option value="suporte" ' + (l.department === 'suporte' ? 'selected' : '') + '>Suporte</option><option value="instalacao" ' + (l.department === 'instalacao' ? 'selected' : '') + '>Instalacao</option><option value="noc" ' + (l.department === 'noc' ? 'selected' : '') + '>NOC</option></select></label>' +
@@ -1951,6 +1970,22 @@ let conversationsPollTimer = null;
     if (!modal || !list) return;
     list.innerHTML = conversationQuickReplies.map(function (r, i) { return '<button type="button" data-quick-reply="' + i + '"><strong>' + convEsc(r[0]) + '</strong><span>' + convEsc(r[1]) + '</span></button>'; }).join("");
     modal.hidden = false;
+  }
+
+  async function analyzeConversationAi() {
+    if (!conversationSelectedPhone) return alert("Selecione uma conversa.");
+    var st = qs("conversationLeadStatus") || qs("conversationSendStatus");
+    if (st) st.textContent = "IA analisando conversa...";
+    try {
+      var data = await api("/api/chatbot-admin/conversations/" + encodeURIComponent(conversationSelectedPhone) + "/ai/analyze", { method: "POST", body: { tenant: convTenant() } });
+      conversationSelectedLead = data.lead || conversationSelectedLead || null;
+      renderConversationLead(conversationSelectedLead, conversationSelectedPhone);
+      if (data.analysis && data.analysis.suggestedReply && qs("conversationReplyText")) qs("conversationReplyText").value = data.analysis.suggestedReply;
+      loadConversations();
+      if (st) st.textContent = "IA operacional atualizada. Revise antes de aplicar qualquer acao.";
+    } catch (e) {
+      if (st) st.textContent = "Erro na IA: " + (e.message || e);
+    }
   }
 
   async function suggestConversationReply() {
@@ -3167,6 +3202,12 @@ qs("btnSave").addEventListener("click", save);
       if (!btn) return;
       ev.preventDefault();
       transferConversation();
+    });
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("#btnConversationAnalyzeAi");
+      if (!btn) return;
+      ev.preventDefault();
+      analyzeConversationAi();
     });
 
     if (qs("btnConversationsRefresh")) qs("btnConversationsRefresh").addEventListener("click", loadConversations);

@@ -1586,6 +1586,14 @@ function conversationLeadPayload(lead) {
     queueStatus: normalizedQueueStatus(lead),
     priority: normalizedPriority(lead.priority),
     department: normalizedDepartment(lead.department),
+    aiSummary: lead.aiSummary || "",
+    aiIntent: lead.aiIntent || "",
+    aiSentiment: lead.aiSentiment || "",
+    aiSuggestedPriority: lead.aiSuggestedPriority || "",
+    aiSuggestedDepartment: lead.aiSuggestedDepartment || "",
+    aiSuggestedReply: lead.aiSuggestedReply || "",
+    aiNextSteps: Array.isArray(lead.aiNextSteps) ? lead.aiNextSteps : [],
+    aiAnalyzedAt: lead.aiAnalyzedAt || null,
     resolvedAt: lead.resolvedAt || null,
     coverageStatus: lead.coverageStatus || "",
     coverageAreaName: lead.coverageAreaName || "",
@@ -1950,6 +1958,41 @@ router.post("/chatbot-admin/conversations/:phone/messages/:messageId/reaction", 
     const row = await WaMessage.findOneAndUpdate(q, update, { new: true }).lean();
     if (!row) return res.status(404).json({ ok: false, error: "message_not_found" });
     return res.json({ ok: true, reaction, message: row });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.post("/chatbot-admin/conversations/:phone/ai/analyze", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    if (!phone) return res.status(400).json({ ok: false, error: "phone_required" });
+    const [messages, lead] = await Promise.all([
+      WaMessage.find(conversationPhoneMongoQuery(tenant, phone)).sort({ createdAt: 1 }).limit(160).lean(),
+      Lead.findOne({ tenant, phone }).lean(),
+    ]);
+    const analysis = dcnetOperationalAi.analyzeConversation({ messages, lead, context: req.body?.context || {} });
+    const now = new Date();
+    const updatedLead = await Lead.findOneAndUpdate(
+      { tenant, phone },
+      {
+        $set: {
+          aiSummary: String(analysis.summary || "").slice(0, 4000),
+          aiIntent: String(analysis.intent || "").slice(0, 120),
+          aiSentiment: String(analysis.sentiment || analysis.urgency || "").slice(0, 80),
+          aiSuggestedPriority: normalizedPriority(analysis.suggestedPriority),
+          aiSuggestedDepartment: normalizedDepartment(analysis.suggestedDepartment),
+          aiSuggestedReply: String(analysis.suggestedReply || "").slice(0, 4000),
+          aiNextSteps: Array.isArray(analysis.nextSteps) ? analysis.nextSteps.map((x) => String(x).slice(0, 240)).slice(0, 8) : [],
+          aiAnalyzedAt: now,
+        },
+        $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" },
+        $push: { timelineEvents: { type: "ai_analyze", label: "IA operacional analisou a conversa", by: req.admin?.email || String(req.admin?._id || ""), at: now, intent: analysis.intent, priority: analysis.suggestedPriority, department: analysis.suggestedDepartment } },
+      },
+      { upsert: true, new: true }
+    ).lean();
+    return res.json({ ok: true, analysis, lead: conversationLeadPayload(updatedLead) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }

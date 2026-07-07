@@ -58,6 +58,62 @@ function generateTasks(intent, hotLead, lead) {
   return tasks;
 }
 
+function detectSentiment(messages, intent, hotLead) {
+  const joined = messages.map((m) => m.text).join(" ").toLowerCase();
+  if (/urgente|agora|cancelar|reclama|procon|processo|sem internet|parado|bloqueado|muito ruim/.test(joined)) return "urgente";
+  if (/obrigad|valeu|perfeito|ok|certo|bom dia|boa tarde|boa noite/.test(joined) && !/problema|erro|falha/.test(joined)) return "positivo";
+  if (/problema|erro|falha|demora|lento|cai|atras|vencid/.test(joined)) return "atencao";
+  if (hotLead || intent === "comercial") return "oportunidade";
+  return "neutro";
+}
+
+function priorityForAnalysis(intent, sentiment, hotLead) {
+  if (sentiment === "urgente") return "urgent";
+  if (hotLead || intent === "suporte" || sentiment === "atencao") return "high";
+  if (intent === "financeiro") return "normal";
+  return "normal";
+}
+
+function departmentForIntent(intent) {
+  if (intent === "financeiro") return "financeiro";
+  if (intent === "suporte") return "suporte";
+  if (intent === "instalacao") return "instalacao";
+  if (intent === "comercial") return "comercial";
+  return "suporte";
+}
+
+function analyzeConversation({ messages, lead }) {
+  const normalized = normalizeMessages(messages);
+  const joined = normalized.map((m) => m.text).join(" ");
+  const lastInbound = normalized.slice().reverse().find((m) => m.direction === "inbound" && m.text) || normalized[normalized.length - 1] || {};
+  const intent = classifyIntent(lastInbound.text || joined);
+  const hotLead = detectHotLead(normalized, lead || {});
+  const sentiment = detectSentiment(normalized, intent, hotLead);
+  const suggestedPriority = priorityForAnalysis(intent, sentiment, hotLead);
+  const suggestedDepartment = departmentForIntent(intent);
+  const reply = suggestReply({ messages: normalized, lead }).reply;
+  const nextSteps = generateTasks(intent, hotLead, lead || {});
+  if (!nextSteps.length) nextSteps.push("Confirmar a necessidade do cliente e registrar o próximo encaminhamento no atendimento.");
+  return {
+    ok: true,
+    mode: process.env.OPENAI_API_KEY ? "heuristic_safe_with_ai_ready" : "heuristic_safe_fallback",
+    autoSendAllowed: false,
+    summary: summarizeConversation(normalized),
+    intent,
+    sentiment,
+    urgency: sentiment === "urgente" ? "urgent" : suggestedPriority,
+    suggestedReply: reply,
+    suggestedDepartment,
+    suggestedPriority,
+    nextSteps,
+    safeguards: [
+      "A analise nao envia mensagem automaticamente ao cliente.",
+      "Setor e prioridade sao apenas sugestoes ate o operador confirmar.",
+      "Use Template Meta aprovado quando a janela de 24h estiver encerrada.",
+    ],
+  };
+}
+
 function suggestReply({ messages, lead }) {
   const normalized = normalizeMessages(messages);
   const lastInbound = normalized.slice().reverse().find((m) => m.direction === "inbound" && m.text) || normalized[normalized.length - 1] || {};
@@ -104,5 +160,6 @@ module.exports = {
   detectHotLead,
   suggestTemplate,
   generateTasks,
+  analyzeConversation,
   analyzeMetaFailure,
 };

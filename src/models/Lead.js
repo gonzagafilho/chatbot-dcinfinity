@@ -60,6 +60,14 @@ const LeadSchema = new mongoose.Schema(
     queueStatus: { type: String, enum: ["waiting", "assigned", "resolved", "paused"], default: "waiting", index: true },
     priority: { type: String, enum: ["low", "normal", "high", "urgent"], default: "normal", index: true },
     department: { type: String, enum: ["comercial", "financeiro", "suporte", "instalacao", "noc"], default: "comercial", index: true },
+    aiSummary: { type: String, default: "" },
+    aiIntent: { type: String, default: "" },
+    aiSentiment: { type: String, default: "" },
+    aiSuggestedPriority: { type: String, default: "" },
+    aiSuggestedDepartment: { type: String, default: "" },
+    aiSuggestedReply: { type: String, default: "" },
+    aiNextSteps: { type: [String], default: [] },
+    aiAnalyzedAt: { type: Date, default: null },
     resolvedAt: { type: Date, default: null },
 
     /** Verificação de cobertura GPS (fluxo comercial / panfleto) */

@@ -3540,3 +3540,16 @@ button:active {
 .crm-queue-controls label { display:grid; gap:5px; font-size:12px; font-weight:800; color:#475569; }
 .crm-queue-controls select { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; background:#fff; color:#0f172a; }
 .crm-queue-controls button { border:0; border-radius:8px; padding:9px 12px; background:#0f172a; color:#fff; font-weight:800; cursor:pointer; }
+
+
+/* v2.1 IA operacional */
+.crm-ai-operational { display:grid; gap:10px; margin:12px 0; padding:12px; border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; color:#0f172a; }
+.crm-ai-operational__head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.crm-ai-operational__head h3 { margin:0; font-size:14px; color:#1e3a8a; }
+.crm-ai-operational__head button { border:0; border-radius:8px; padding:8px 10px; background:#1d4ed8; color:#fff; font-weight:800; cursor:pointer; }
+.crm-ai-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.crm-ai-grid div, .crm-ai-operational p, .crm-ai-next { display:grid; gap:4px; margin:0; }
+.crm-ai-grid b, .crm-ai-operational p b, .crm-ai-next b { font-size:11px; text-transform:uppercase; color:#1e40af; }
+.crm-ai-grid span, .crm-ai-operational p span, .crm-ai-next span { font-size:12px; line-height:1.35; color:#0f172a; }
+.crm-ai-operational small { color:#475569; }
+@media (max-width: 768px) { .crm-ai-grid { grid-template-columns:1fr; } }
