@@ -1620,6 +1620,58 @@ function conversationMetaIndicator(translated) {
   return { icon: "⚠", label: "não entregue", tone: "failed" };
 }
 
+function startOfLocalDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function averageMs(values) {
+  const valid = values.filter((v) => Number.isFinite(v) && v >= 0);
+  if (!valid.length) return 0;
+  return Math.round(valid.reduce((sum, v) => sum + v, 0) / valid.length);
+}
+
+router.get("/chatbot-admin/queue/dashboard", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.query.tenant);
+    await ensureOperatorForAdmin(req.admin, tenant);
+    const adminId = String(req.admin?._id || "");
+    const adminEmail = String(req.admin?.email || "").toLowerCase();
+    const now = new Date();
+    const todayStart = startOfLocalDay(now);
+    const leads = await Lead.find({ tenant, $or: [{ channel: "whatsapp" }, { origin: "whatsapp" }] }, "queueStatus priority assignedTo assignedToEmail updatedAt assignedAt resolvedAt status").lean();
+    const waiting = leads.filter((l) => normalizedQueueStatus(l) === "waiting");
+    const assigned = leads.filter((l) => normalizedQueueStatus(l) === "assigned");
+    const mine = leads.filter((l) => {
+      const assignedTo = String(l.assignedTo || "");
+      const assignedEmail = String(l.assignedToEmail || "").toLowerCase();
+      return (!!adminId && assignedTo === adminId) || (!!adminEmail && assignedEmail === adminEmail);
+    });
+    const urgent = leads.filter((l) => normalizedPriority(l.priority) === "urgent");
+    const resolvedToday = leads.filter((l) => {
+      if (normalizedQueueStatus(l) !== "resolved") return false;
+      const when = l.resolvedAt || l.updatedAt;
+      return when && new Date(when) >= todayStart;
+    });
+    const waitingDurations = waiting.map((l) => now.getTime() - new Date(l.updatedAt || l.assignedAt || now).getTime());
+    const assignedWaitDurations = assigned.map((l) => new Date(l.assignedAt || l.updatedAt || now).getTime() - new Date(l.updatedAt || l.assignedAt || now).getTime());
+    const averageWaitMs = averageMs(waitingDurations.length ? waitingDurations : assignedWaitDurations);
+    return res.json({
+      ok: true,
+      generatedAt: now.toISOString(),
+      metrics: {
+        waiting: waiting.length,
+        assigned: assigned.length,
+        mine: mine.length,
+        urgent: urgent.length,
+        resolvedToday: resolvedToday.length,
+        averageWaitMs,
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) => {
   try {
     const tenant = normalizeTenantParam(req.query.tenant);

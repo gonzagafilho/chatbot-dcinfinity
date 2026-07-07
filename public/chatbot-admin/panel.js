@@ -137,6 +137,7 @@ let conversationsPollTimer = null;
   var waHistoryHasMore = false;
   var conversationRows = [];
   var conversationOperators = [];
+  var conversationDashboard = null;
   var currentAdmin = null;
   var conversationSelectedPhone = "";
   var conversationUserOpened = false;
@@ -1442,18 +1443,39 @@ let conversationsPollTimer = null;
     return map[d] || d;
   }
 
+  function formatQueueWait(ms) {
+    ms = Number(ms || 0);
+    if (!ms || ms < 0) return "0 min";
+    var minutes = Math.round(ms / 60000);
+    if (minutes < 60) return minutes + " min";
+    var hours = Math.floor(minutes / 60);
+    var rest = minutes % 60;
+    return hours + "h" + (rest ? " " + rest + "m" : "");
+  }
+
+  function localConversationDashboardMetrics() {
+    var count = function (fn) { return conversationRows.filter(fn).length; };
+    return {
+      waiting: count(function (c) { return conversationQueueStatus(c) === "waiting"; }),
+      assigned: count(function (c) { return conversationQueueStatus(c) === "assigned"; }),
+      mine: count(currentAdminMatchesConversation),
+      urgent: count(function (c) { return String(c.priority || "").toLowerCase() === "urgent"; }),
+      resolvedToday: count(function (c) { return conversationQueueStatus(c) === "resolved"; }),
+      averageWaitMs: 0,
+    };
+  }
+
   function renderConversationCrmStats() {
     var root = qs("conversationCrmStats");
     if (!root) return;
-    var count = function (fn) { return conversationRows.filter(fn).length; };
+    var metrics = (conversationDashboard && conversationDashboard.metrics) || localConversationDashboardMetrics();
     var stats = [
-      ["Conversas abertas", conversationRows.length],
-      ["Minha fila", count(currentAdminMatchesConversation)],
-      ["Aguardando", count(function (c) { return conversationQueueStatus(c) === "waiting"; })],
-      ["Em atendimento", count(function (c) { return conversationQueueStatus(c) === "assigned"; })],
-      ["Resolvidos", count(function (c) { return conversationQueueStatus(c) === "resolved"; })],
-      ["Urgentes", count(function (c) { return String(c.priority || "").toLowerCase() === "urgent"; })],
-      ["Não lidas", count(function (c) { return Number(c.unreadCount || 0) > 0 || c.unreadManual; })]
+      ["Aguardando", metrics.waiting || 0],
+      ["Em atendimento", metrics.assigned || 0],
+      ["Minha fila", metrics.mine || 0],
+      ["Urgentes", metrics.urgent || 0],
+      ["Resolvidos hoje", metrics.resolvedToday || 0],
+      ["Tempo médio de espera", formatQueueWait(metrics.averageWaitMs)],
     ];
     root.innerHTML = stats.map(function (s) { return '<div><b>' + convEsc(s[1]) + '</b><span>' + convEsc(s[0]) + '</span></div>'; }).join("");
   }
@@ -1482,6 +1504,17 @@ let conversationsPollTimer = null;
     }
   }
 
+  async function loadQueueDashboard() {
+    try {
+      var data = await api("/api/chatbot-admin/queue/dashboard?tenant=" + encodeURIComponent(convTenant()));
+      conversationDashboard = data || null;
+      renderConversationCrmStats();
+    } catch (e) {
+      conversationDashboard = null;
+      renderConversationCrmStats();
+    }
+  }
+
   async function loadConversations() {
     var root = qs("conversationList");
     if (!root) return;
@@ -1496,6 +1529,7 @@ let conversationsPollTimer = null;
       params.set("limit", "80");
       if (qs("conversationSearch") && qs("conversationSearch").value.trim()) params.set("q", qs("conversationSearch").value.trim());
       if (!conversationOperators.length) loadConversationOperators();
+      var dashboardPromise = loadQueueDashboard();
       var data = await api("/api/chatbot-admin/conversations?" + params.toString());
       var nextRows = Array.isArray(data.items) ? data.items : (Array.isArray(data.rows) ? data.rows : []);
       updateConversationRealtimeSignals(nextRows);
@@ -1503,6 +1537,7 @@ let conversationsPollTimer = null;
       conversationAvailableTags = data.tags || conversationAvailableTags;
       var visiblePhones = new Set(conversationRows.map(function (c) { return String(c.phone); }));
       renderConversationCrmStats();
+      dashboardPromise.catch(function () {});
       renderConversationFilterCounts();
       renderConversationList();
       if (conversationUserOpened && conversationSelectedPhone && visiblePhones.has(String(conversationSelectedPhone))) loadConversationMessages(conversationSelectedPhone, true);

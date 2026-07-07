@@ -1,13 +1,13 @@
 {
   "ok": true,
   "enabled": false,
-  "updatedAt": "2026-07-07 11:41:01",
+  "updatedAt": "2026-07-07 11:45:01",
   "host": "servidor-dcnet",
   "metrics": {
-    "cpu": 32,
+    "cpu": 27,
     "ram": 20,
     "disk": 31,
-    "load1": 1.72,
+    "load1": 1.7,
     "load5": 1.69,
     "load15": 1.65
   },
