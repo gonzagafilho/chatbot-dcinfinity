@@ -3646,3 +3646,30 @@ button:active {
   .crm-media-card .crm-media-image, .crm-media-card audio, .crm-media-card video { max-width:100%; }
   .crm-media-open { width:100%; }
 }
+
+
+/* v2.1 PWA mobile otimizado */
+@media (max-width:768px) {
+  body.mobile-chat-open #tab-conversations,
+  body.mobile-chat-open #tab-conversations .crm-whatsapp-shell,
+  body.mobile-chat-open #tab-conversations .crm-app,
+  body.mobile-chat-open #tab-conversations .crm-wa,
+  body.mobile-chat-open #tab-conversations .crm-chat-panel {
+    height:calc(100dvh - 80px) !important;
+    max-height:calc(100dvh - 80px) !important;
+  }
+  body.mobile-chat-open #tab-conversations .crm-composer {
+    padding-bottom:max(10px, env(safe-area-inset-bottom)) !important;
+    background:#f8fafc !important;
+  }
+  body:not(.mobile-chat-open) #tab-conversations .crm-chat-list {
+    min-height:0 !important;
+    overflow-y:visible !important;
+  }
+  #tab-conversations .crm-back-btn {
+    flex:0 0 34px;
+  }
+  #tab-conversations .crm-thread__actions {
+    gap:6px;
+  }
+}

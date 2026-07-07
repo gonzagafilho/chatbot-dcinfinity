@@ -3876,7 +3876,7 @@ qs("btnSave").addEventListener("click", save);
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
         navigator.serviceWorker
-          .register("/chatbot-admin/sw.js", { scope: "/chatbot-admin/" })
+          .register("/chatbot-admin/sw.js?v=20260707-v210-pwa-otimizado", { scope: "/chatbot-admin/", updateViaCache: "none" })
           .catch(function () {
             /* silencioso: painel continua sem PWA */
           });
