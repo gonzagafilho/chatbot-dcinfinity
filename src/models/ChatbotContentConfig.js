@@ -44,6 +44,16 @@ const ChatbotContentConfigSchema = new mongoose.Schema(
       shortAlertMessage: { type: String, default: "" },
     },
 
+    commercialPlanFlyerEnabled: { type: Boolean, default: false },
+    commercialPlanFlyerImageUrl: { type: String, default: "" },
+    commercialPlanFlyerCaption: { type: String, default: "" },
+
+    commercial: {
+      commercialPlanFlyerEnabled: { type: Boolean, default: false },
+      commercialPlanFlyerImageUrl: { type: String, default: "" },
+      commercialPlanFlyerCaption: { type: String, default: "" },
+    },
+
     maintenance: {
       active: { type: Boolean, default: false },
       title: { type: String, default: "" },

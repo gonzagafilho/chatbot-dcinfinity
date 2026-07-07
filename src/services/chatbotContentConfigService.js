@@ -33,6 +33,14 @@ const DEFAULT_SHAPE = {
     expectedReturnMessage: "",
     shortAlertMessage: "",
   },
+  commercialPlanFlyerEnabled: false,
+  commercialPlanFlyerImageUrl: "",
+  commercialPlanFlyerCaption: "",
+  commercial: {
+    commercialPlanFlyerEnabled: false,
+    commercialPlanFlyerImageUrl: "",
+    commercialPlanFlyerCaption: "",
+  },
   maintenance: {
     active: false,
     title: "",
@@ -48,7 +56,7 @@ const DEFAULT_SHAPE = {
   },
 };
 
-const MERGE_KEYS = ["campaigns", "campaignTexts", "campaignActive", "operationalMessages", "maintenance", "automation"];
+const MERGE_KEYS = ["campaigns", "campaignTexts", "campaignActive", "operationalMessages", "commercial", "maintenance", "automation"];
 
 function deepMergeSection(base, patch) {
   if (!patch || typeof patch !== "object") return base || {};
@@ -83,6 +91,29 @@ async function getConfigForTenant(tenant) {
       base[key] = deepMergeSection(DEFAULT_SHAPE[key], doc[key]);
     }
   }
+
+  const nestedCommercial = doc.commercial && typeof doc.commercial === "object" ? doc.commercial : {};
+  base.commercialPlanFlyerEnabled =
+    doc.commercialPlanFlyerEnabled != null
+      ? Boolean(doc.commercialPlanFlyerEnabled)
+      : Boolean(nestedCommercial.commercialPlanFlyerEnabled);
+  base.commercialPlanFlyerImageUrl = String(
+    doc.commercialPlanFlyerImageUrl != null
+      ? doc.commercialPlanFlyerImageUrl
+      : nestedCommercial.commercialPlanFlyerImageUrl || ""
+  );
+  base.commercialPlanFlyerCaption = String(
+    doc.commercialPlanFlyerCaption != null
+      ? doc.commercialPlanFlyerCaption
+      : nestedCommercial.commercialPlanFlyerCaption || ""
+  );
+  base.commercial = {
+    ...base.commercial,
+    commercialPlanFlyerEnabled: base.commercialPlanFlyerEnabled,
+    commercialPlanFlyerImageUrl: base.commercialPlanFlyerImageUrl,
+    commercialPlanFlyerCaption: base.commercialPlanFlyerCaption,
+  };
+
   base.updatedAt = doc.updatedAt || null;
   return base;
 }
@@ -135,6 +166,11 @@ async function getOperationalMessagesForTenant(tenant) {
   return { ...cfg.operationalMessages };
 }
 
+async function getCommercialPlanFlyerConfig(tenant) {
+  const cfg = await getConfigForTenant(tenant);
+  return { ...cfg.commercial };
+}
+
 /**
  * @param {string} tenant
  * @param {object} patch — apenas chaves permitidas em MERGE_KEYS
@@ -148,6 +184,35 @@ async function patchConfigForTenant(tenant, patch) {
   }
 
   const existing = await ChatbotContentConfig.findOne({ tenant: t }).lean();
+  const existingCommercial = existing?.commercial && typeof existing.commercial === "object" ? existing.commercial : {};
+  const patchCommercial = patch.commercial && typeof patch.commercial === "object" ? patch.commercial : {};
+  const commercialPlanFlyerEnabled =
+    patch.commercialPlanFlyerEnabled != null
+      ? Boolean(patch.commercialPlanFlyerEnabled)
+      : patchCommercial.commercialPlanFlyerEnabled != null
+        ? Boolean(patchCommercial.commercialPlanFlyerEnabled)
+        : existing?.commercialPlanFlyerEnabled != null
+          ? Boolean(existing.commercialPlanFlyerEnabled)
+          : Boolean(existingCommercial.commercialPlanFlyerEnabled);
+  const commercialPlanFlyerImageUrl = String(
+    patch.commercialPlanFlyerImageUrl != null
+      ? patch.commercialPlanFlyerImageUrl
+      : patchCommercial.commercialPlanFlyerImageUrl != null
+        ? patchCommercial.commercialPlanFlyerImageUrl
+        : existing?.commercialPlanFlyerImageUrl != null
+          ? existing.commercialPlanFlyerImageUrl
+          : existingCommercial.commercialPlanFlyerImageUrl || ""
+  ).trim();
+  const commercialPlanFlyerCaption = String(
+    patch.commercialPlanFlyerCaption != null
+      ? patch.commercialPlanFlyerCaption
+      : patchCommercial.commercialPlanFlyerCaption != null
+        ? patchCommercial.commercialPlanFlyerCaption
+        : existing?.commercialPlanFlyerCaption != null
+          ? existing.commercialPlanFlyerCaption
+          : existingCommercial.commercialPlanFlyerCaption || ""
+  ).trim();
+
   const merged = {
     tenant: t,
     campaigns: deepMergeSection(
@@ -166,6 +231,14 @@ async function patchConfigForTenant(tenant, patch) {
       deepMergeSection(DEFAULT_SHAPE.operationalMessages, existing?.operationalMessages),
       patch.operationalMessages
     ),
+    commercialPlanFlyerEnabled,
+    commercialPlanFlyerImageUrl,
+    commercialPlanFlyerCaption,
+    commercial: {
+      commercialPlanFlyerEnabled,
+      commercialPlanFlyerImageUrl,
+      commercialPlanFlyerCaption,
+    },
     maintenance: deepMergeSection(
       deepMergeSection(DEFAULT_SHAPE.maintenance, existing?.maintenance),
       patch.maintenance
@@ -194,5 +267,6 @@ module.exports = {
   getBirthdayCampaignImageUrl,
   getBirthdayCampaignCaptionTemplate,
   getOperationalMessagesForTenant,
+  getCommercialPlanFlyerConfig,
   DEFAULT_SHAPE,
 };

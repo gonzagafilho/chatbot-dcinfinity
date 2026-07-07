@@ -1,12 +1,12 @@
 /* PWA: cache mínimo do painel; /api e não-GET passam direto */
 "use strict";
 
-const CACHE = "dcnet-chatbot-admin-v4";
+const CACHE = "dcnet-chatbot-admin-20260701-loginbuttonfix";
 const PRECACHE = [
   "/chatbot-admin/",
   "/chatbot-admin/index.html",
-  "/chatbot-admin/styles.css",
-  "/chatbot-admin/panel.js",
+  "/chatbot-admin/styles.css?v=20260701-loginbuttonfix",
+  "/chatbot-admin/panel.js?v=20260701-loginbuttonfix",
 ];
 
 self.addEventListener("install", function (event) {

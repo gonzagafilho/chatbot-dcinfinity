@@ -22,6 +22,9 @@ const WaMessageSchema = new mongoose.Schema(
     to: { type: String, default: "" },
 
     text: { type: String, default: "" },
+    messageType: { type: String, default: "", index: true },
+    mediaUrl: { type: String, default: "" },
+    filename: { type: String, default: "" },
     intent: { type: String, default: "" },
     page: { type: String, default: "" },
 
@@ -36,6 +39,26 @@ const WaMessageSchema = new mongoose.Schema(
     failedAt: { type: Date, default: null },
 
     metaError: { type: mongoose.Schema.Types.Mixed, default: null },
+
+    templateName: { type: String, default: "", index: true },
+    languageCode: { type: String, default: "" },
+    templateVariables: { type: mongoose.Schema.Types.Mixed, default: null },
+    templateComponents: { type: mongoose.Schema.Types.Mixed, default: null },
+    fallbackToTemplate: { type: Boolean, default: false, index: true },
+    hiddenFromInbox: { type: Boolean, default: false, index: true },
+    hiddenAt: { type: Date, default: null },
+    hiddenBy: { type: String, default: "" },
+    operatorId: { type: String, default: "", index: true },
+    operatorName: { type: String, default: "" },
+    operatorEmail: { type: String, default: "" },
+    responseKind: { type: String, default: "" },
+    auditAction: { type: String, default: "", index: true },
+    auditBy: { type: String, default: "" },
+    auditAt: { type: Date, default: null },
+    reactions: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    replyToMessageId: { type: String, default: "", index: true },
+    replyToText: { type: String, default: "" },
+    replyToWamid: { type: String, default: "" },
   },
   { timestamps: true }
 );

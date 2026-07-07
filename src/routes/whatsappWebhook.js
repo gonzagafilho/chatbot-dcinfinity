@@ -8,6 +8,7 @@ const {
 // const { sendWhatsAppText } = require("../services/whatsappSend");
 const {
   sendWhatsAppText,
+  sendWhatsAppImage,
   sendLocationRequest,
   sendWhatsAppCtaUrlButton,
   sendDcnetFalarComAtendenteCta,
@@ -38,9 +39,25 @@ const {
   normalizeCpf11,
 } = require("../integrations/beesweb/customerLookup");
 const { pickCustomerId, buildPhoneSearchTerms } = require("../integrations/beesweb/customers");
+const {
+  extractCep,
+  checkCoverageByCep,
+  saveCoverageInterest,
+} = require("../services/coverageZipService");
 const { checkCoverageByGps } = require("../services/coverageService");
+const { getCommercialPlanFlyerConfig } = require("../services/chatbotContentConfigService");
+const {
+  isCommercialIntentMessage,
+  isIntencaoOperacionalPorTextoAtual,
+} = require("../constants/dcnetOperationalKeywords");
 
 const COVERAGE_PANFLETO_HUMAN_WA = process.env.COVERAGE_PANFLETO_HUMAN_WA || "5561991374910";
+const COMMERCIAL_PLAN_FLYER_PROMPT =
+  "Escolha o plano desejado ou envie seu CEP/localização para verificarmos cobertura.\n\n" +
+  "✅ Digite seu CEP\n" +
+  "Exemplo: 73402-586\n\n" +
+  "OU\n\n" +
+  "📍 Toque no botão abaixo para enviar sua localização.";
 
 function dcnetBeeswebDebug(payload) {
   if (process.env.DCNET_BEESWEB_DEBUG !== "1") return;
@@ -114,6 +131,24 @@ function parseLiberarCommand(rawText) {
  * Liberação manual DC NET: só operador autorizado, comando LIBERAR &lt;telefone&gt;.
  * @returns {Promise<boolean>} true se tratou (sucesso ou erro ao humano); false para fluxo normal
  */
+
+function extractWhatsAppProfileData(body) {
+  const value = body?.entry?.[0]?.changes?.[0]?.value || {};
+  const contact = Array.isArray(value.contacts) ? value.contacts[0] || {} : {};
+  const profile = contact.profile || {};
+  const name = String(profile.name || contact.name || "").trim();
+  const photo = String(
+    profile.photo_url ||
+    profile.profile_pic_url ||
+    profile.picture ||
+    contact.photo_url ||
+    contact.profilePhotoUrl ||
+    value.profile_photo_url ||
+    ""
+  ).trim();
+  return { name, photo };
+}
+
 async function tryDcnetManualFinanceRelease({
   tenant,
   from,
@@ -495,77 +530,6 @@ router.post("/webhook/whatsapp", async (req, res) => {
     });
     if (manualReleaseHandled) return;
 
-    if (tenant === "dcnet" && messageType === "text") {
-      const texto = text || "";
-      const plano = detectarPlanoPanfleto(texto);
-      if (plano) {
-        const panfletoReply =
-          "Perfeito! 🚀\n" +
-          "Você escolheu o plano de " +
-          plano +
-          ".\n\n" +
-          "Agora preciso verificar a cobertura na sua região.\n\n" +
-          "📍 Por favor, envie sua localização para continuar.";
-        try {
-          await WaMessage.create({
-            tenant,
-            channel: "whatsapp",
-            origin: null,
-
-            waMessageId,
-            direction: "inbound",
-            from,
-            to: toPhoneId,
-            text: inboundSummaryText,
-            raw: req.body,
-          });
-        } catch (e) {
-          if (String(e?.code) !== "11000") {
-            console.error("❌ Erro ao salvar inbound (panfleto):", e?.message || e);
-          }
-        }
-        try {
-          const sentPan = await sendLocationRequest(from, panfletoReply);
-          try {
-            await WaMessage.create({
-              tenant,
-              channel: "whatsapp",
-              origin: null,
-              wamid: sentPan?.messages?.[0]?.id,
-              direction: "outbound",
-              from: toPhoneId,
-              to: from,
-              text: panfletoReply,
-              raw: sentPan,
-            });
-          } catch (e2) {
-            console.error("❌ Erro ao salvar outbound (panfleto):", e2?.message || e2);
-          }
-        } catch (e) {
-          console.error("❌ Erro ao enviar resposta (panfleto):", e?.message || e);
-        }
-        try {
-          await Lead.findOneAndUpdate(
-            { phone: from, tenant },
-            {
-              $set: {
-                lastMessage: inboundSummaryText,
-                lastIntent: "commercial_wait_location",
-                status: "commercial_flow",
-                origin: "whatsapp",
-                channel: "whatsapp",
-                tenant,
-              },
-            },
-            { upsert: true }
-          );
-        } catch (e) {
-          console.error("❌ Erro ao atualizar lead (panfleto):", e?.message || e);
-        }
-        return;
-      }
-    }
-
     // salva inbound
     try {
       await WaMessage.create({
@@ -595,12 +559,31 @@ router.post("/webhook/whatsapp", async (req, res) => {
       }
     }
 
+    const previousCommercialIntent = String(previousLeadBeforeInbound?.lastIntent || "")
+      .trim()
+      .toLowerCase();
+    const previousCommercialStatus = String(previousLeadBeforeInbound?.status || "")
+      .trim()
+      .toLowerCase();
+    const incomingCommercialIntent =
+      tenant === "dcnet" &&
+      messageType === "text" &&
+      !isLocation &&
+      !isImage &&
+      !isDocument &&
+      !isIntencaoOperacionalPorTextoAtual(text) &&
+      (Boolean(detectarPlanoPanfleto(text)) || isCommercialIntentMessage(text));
+
     const wasCommercialLocationRequest =
       tenant === "dcnet" &&
       isLocation &&
-      String(previousLeadBeforeInbound?.lastIntent || "")
-        .trim()
-        .toLowerCase() === "commercial_wait_location";
+      (previousCommercialStatus === "commercial_flow" ||
+        [
+          "commercial_choose_plan",
+          "commercial_wait_location",
+          "commercial_wait_cep",
+          "commercial_wait_coverage",
+        ].includes(previousCommercialIntent));
 
     const shouldResetDcnetContextByGreeting =
       tenant === "dcnet" &&
@@ -622,12 +605,16 @@ router.post("/webhook/whatsapp", async (req, res) => {
 
     // atualiza/cria lead
     try {
+      const profileData = extractWhatsAppProfileData(req.body);
       const leadSet = {
         lastMessage: isLocation ? "location_shared" : inboundSummaryText,
         origin: "whatsapp",
         channel: "whatsapp",
         tenant,
       };
+      if (profileData.name) leadSet.whatsappProfileName = profileData.name;
+      if (profileData.name && !previousLeadBeforeInbound?.name) leadSet.name = profileData.name;
+      if (profileData.photo) leadSet.profilePhotoUrl = profileData.photo;
       if (isLocation) leadSet.lastIntent = "location_shared";
       if (isLocation && tenant === "dcnet") leadSet.status = "handoff";
 
@@ -665,6 +652,138 @@ router.post("/webhook/whatsapp", async (req, res) => {
       console.error("❌ Erro ao atualizar lead:", e?.message || e);
     }
 
+    // CEP_HANDLER_FINAL_START
+    if (tenant === "dcnet" && messageType === "text" && !isLocation && !isImage && !isDocument) {
+      const cep = extractCep(text);
+      if (cep) {
+        let cepCoverage;
+        try {
+          cepCoverage = await checkCoverageByCep({ tenant: "dcnet", cep });
+        } catch (e) {
+          console.error("❌ checkCoverageByCep:", e?.message || e);
+          cepCoverage = {
+            ok: false,
+            covered: false,
+            reason: "lookup_error",
+            cep,
+            area: null,
+          };
+        }
+
+        const cepAreaName =
+          cepCoverage.covered && cepCoverage.area
+            ? String(cepCoverage.area.name || cepCoverage.area.neighborhood || "").trim()
+            : "";
+        const cepFormatted = cep.replace(/^(\d{5})(\d{3})$/, "$1-$2");
+        const cepCovered = Boolean(cepCoverage.covered);
+        const cepIntent = cepCovered ? "commercial_cep_covered" : "commercial_cep_not_covered";
+        const cepStatus = cepCovered ? "covered" : "waiting_coverage";
+        const outBody = cepCovered
+          ? "Excelente! Seu CEP possui cobertura DC NET.\n\n" +
+            "Seu atendimento já foi encaminhado para nossa equipe comercial finalizar o pré-cadastro.\n\n" +
+            "Para agilizar, responda em uma única mensagem com:\n" +
+            "• Nome completo\n" +
+            "• CPF\n" +
+            "• Melhor horário para contato"
+          : "Recebemos seu CEP: " +
+            cepFormatted +
+            ".\n\n" +
+            "Registrei seu interesse e encaminhei para nossa equipe comercial analisar a viabilidade no endereço informado.\n\n" +
+            "Um atendente vai retornar com a confirmação.";
+
+        try {
+          await Lead.findOneAndUpdate(
+            { phone: from, tenant: "dcnet" },
+            {
+              $set: {
+                lastMessage: inboundSummaryText,
+                lastIntent: cepIntent,
+                status: "handoff",
+                coverageStatus: cepStatus,
+                coverageAreaName: cepCovered ? (cepAreaName || null) : null,
+                origin: "whatsapp",
+                channel: "whatsapp",
+                tenant: "dcnet",
+              },
+            },
+            { upsert: true }
+          );
+        } catch (e) {
+          console.error("❌ lead atualização cobertura CEP:", e?.message || e);
+        }
+
+        if (!cepCovered) {
+          try {
+            await saveCoverageInterest({
+              tenant: "dcnet",
+              phone: from,
+              cep,
+              source: "whatsapp",
+              lastMessage: inboundSummaryText,
+            });
+          } catch (e) {
+            console.error("❌ salvar interesse cobertura CEP:", e?.message || e);
+          }
+        }
+
+        try {
+          const sentCep = await sendWhatsAppText(from, outBody);
+          await WaMessage.create({
+            tenant: "dcnet",
+            channel: "whatsapp",
+            origin: null,
+            wamid: sentCep?.messages?.[0]?.id,
+            direction: "outbound",
+            from: toPhoneId,
+            to: from,
+            text: outBody,
+            raw: sentCep,
+          });
+        } catch (e) {
+          console.error("❌ outbound cobertura CEP (cliente):", e?.message || e);
+        }
+
+        try {
+          const humanText =
+            (cepCovered
+              ? "✅ Lead Panfleto / CEP coberto\n"
+              : "⚠️ Lead Panfleto / CEP não coberto\n") +
+            "Cliente: " +
+            from +
+            "\n" +
+            "CEP: " +
+            cepFormatted +
+            "\n" +
+            "Verificação: " +
+            cepIntent +
+            (cepAreaName ? "\nÁrea: " + cepAreaName : "");
+          await sendWhatsAppText(COVERAGE_PANFLETO_HUMAN_WA, humanText);
+        } catch (e) {
+          console.error("❌ notificar humano panfleto (CEP):", e?.message || e);
+        }
+
+        try {
+          await notifyAdmin({
+            tenant: "dcnet",
+            from,
+            origin: "whatsapp",
+            message:
+              "Cobertura CEP: " +
+              (cepCovered ? "coberto" : "não coberto/interesse salvo") +
+              " — " +
+              from +
+              " (" +
+              cepFormatted +
+              ")",
+          });
+        } catch (e) {
+          console.error("⚠️ notifyAdmin cobertura CEP:", e?.message || e);
+        }
+
+        return;
+      }
+    }
+
     let convCtx = null;
     if (tenant === "dcnet") {
       try {
@@ -678,8 +797,9 @@ router.post("/webhook/whatsapp", async (req, res) => {
         const inHumanGeneralQueue = isDcnetHumanGeneralHandoffIntent(convCtx?.context?.lastIntent);
         const idSkip = Boolean(convCtx?.context?.beeswebIdentificationSkip);
         const inCommercialFlow =
+          incomingCommercialIntent ||
           (convCtx?.context?.status || "").toString().trim().toLowerCase() === "commercial_flow" ||
-          ["commercial_choose_plan", "commercial_wait_location"].includes(lastIntent);
+          ["commercial_choose_plan", "commercial_wait_location", "commercial_wait_cep", "commercial_wait_coverage"].includes(lastIntent);
         const awaitingCpf = isDcnetBeeswebIdentificationAwaitingCpf(convCtx?.context?.lastIntent);
         const skipIdentMenu = isDcnetBeeswebIdentifiedServiceMenu(convCtx?.context?.lastIntent);
         const skipPhoneNfMenu = isDcnetBeeswebPhoneNotFoundMenu(convCtx?.context?.lastIntent);
@@ -1320,7 +1440,11 @@ router.post("/webhook/whatsapp", async (req, res) => {
             {
               $set: {
                 lastMessage: inboundSummaryText,
-                lastIntent: "location_shared",
+                lastIntent: cov.covered
+                  ? "commercial_location_covered"
+                  : cov.reason === "invalid_location"
+                    ? "commercial_location_handoff"
+                    : "commercial_location_pending_handoff",
                 status: "handoff",
                 coverageStatus: cov.covered
                   ? "covered"
@@ -1344,7 +1468,8 @@ router.post("/webhook/whatsapp", async (req, res) => {
         let outBody;
         if (cov.reason === "invalid_location") {
           outBody =
-            "Não conseguimos processar a localização enviada. Por favor, toque no clip 📎 e envie a localização novamente.";
+            "Recebemos sua localização. 📍\n\n" +
+            "Encaminhei seu atendimento para nossa equipe comercial analisar e retornar o mais breve possível.";
         } else if (cov.covered) {
           outBody =
             "Excelente! Sua região possui cobertura DC NET.\n\n" +
@@ -1355,8 +1480,10 @@ router.post("/webhook/whatsapp", async (req, res) => {
             "Obrigado!";
         } else {
           outBody =
-            "Recebemos sua localização. Neste ponto ainda *estamos analisando* a viabilidade; nossa equipe comercial retornará o mais breve possível.\n\n" +
-            "Obrigado por entrar em contato!";
+            "Recebemos sua localização. 📍\n\n" +
+            "Para agilizar a verificação da cobertura, me envie também seu CEP.\n\n" +
+            "Exemplo: 73402-586\n\n" +
+            "Caso não saiba o CEP, fique tranquilo: nossa equipe comercial já recebeu sua localização e vai retornar o mais breve possível.";
         }
 
         try {
@@ -1376,40 +1503,46 @@ router.post("/webhook/whatsapp", async (req, res) => {
           console.error("❌ outbound cobertura (cliente):", e?.message || e);
         }
 
-        if (!cov.covered && cov.reason !== "invalid_location") {
-          try {
-            const humanText =
-              "📍 Lead Panfleto / cobertura (fora ou pendente)\n" +
-              "Cliente: " +
+        try {
+          const humanText =
+            "📍 Lead Panfleto / GPS recebido\n" +
+            "Cliente: " +
+            from +
+            "\n" +
+            "Geo: " +
+            location.latitude +
+            ", " +
+            location.longitude +
+            "\n" +
+            "Verificação: " +
+            String(cov.reason || "") +
+            (cov.covered ? " (coberto)" : "") +
+            (areaName ? "\nÁrea: " + areaName : "") +
+            (cov.distanceMeters != null ? "\nDistância: ≈" + cov.distanceMeters + "m" : "");
+          await sendWhatsAppText(COVERAGE_PANFLETO_HUMAN_WA, humanText);
+        } catch (e) {
+          console.error("❌ notificar humano panfleto (cobertura):", e?.message || e);
+        }
+        try {
+          await notifyAdmin({
+            tenant: "dcnet",
+            from,
+            origin: "whatsapp",
+            message:
+              "Cobertura GPS: " +
+              (cov.covered ? "coberto" : "pendente/analisar") +
+              " — " +
               from +
-              "\n" +
-              "Geo: " +
+              " (" +
               location.latitude +
               ", " +
               location.longitude +
-              "\n" +
-              "Verificação: " +
-              cov.reason +
-              (cov.distanceMeters != null ? " (≈" + cov.distanceMeters + "m do círculo)" : "");
-            await sendWhatsAppText(COVERAGE_PANFLETO_HUMAN_WA, humanText);
-          } catch (e) {
-            console.error("❌ notificar humano panfleto (cobertura):", e?.message || e);
-          }
-          try {
-            await notifyAdmin({
-              tenant: "dcnet",
-              from,
-              origin: "whatsapp",
-              message:
-                "Cobertura GPS: fora/sem área ativa — " +
-                from +
-                " (" +
-                String(cov.reason) +
-                ")",
-            });
-          } catch (e) {
-            console.error("⚠️ notifyAdmin cobertura:", e?.message || e);
-          }
+              "; " +
+              String(cov.reason || "") +
+              ")",
+          });
+        } catch (e) {
+          console.error("⚠️ notifyAdmin cobertura:", e?.message || e);
         }
 
         return;
@@ -1522,6 +1655,12 @@ router.post("/webhook/whatsapp", async (req, res) => {
       ? dcnetFalarAtendenteOutboundLogText(replyText)
       : replyText;
 
+    const shouldSendCommercialPlanFlyer =
+      tenant === "dcnet" &&
+      result &&
+      typeof result === "object" &&
+      result.commercialPlanFlyer === true;
+
     console.log("🤖 Reply rules:", replyText);
 
     if (result && typeof result === "object" && result.adminNotify?.message) {
@@ -1548,7 +1687,106 @@ router.post("/webhook/whatsapp", async (req, res) => {
     const boletoUrl = boletoIx ? String(boletoIx.link || "").trim() : "";
 
     let sent = null;
-    if (boletoUrl) {
+    let commercialPlanFlyerSent = false;
+
+    if (shouldSendCommercialPlanFlyer) {
+      const flyerCfg = await getCommercialPlanFlyerConfig("dcnet");
+      const flyerUrl = String(flyerCfg?.commercialPlanFlyerImageUrl || "").trim();
+      const flyerEnabled = flyerCfg?.commercialPlanFlyerEnabled === true;
+
+      if (flyerEnabled) {
+        commercialPlanFlyerSent = true;
+
+        if (!flyerUrl) {
+          console.error("❌ flyer comercial ativo sem URL configurada");
+          try {
+            await notifyAdmin({
+              tenant: "dcnet",
+              from,
+              origin: "whatsapp",
+              message: "Fluxo comercial: panfleto ativo, mas commercialPlanFlyerImageUrl está vazio. Atendimento encaminhado.",
+            });
+          } catch (e) {
+            console.error("⚠️ notifyAdmin flyer sem URL:", e?.message || e);
+          }
+          try {
+            await Lead.findOneAndUpdate(
+              { phone: from, tenant },
+              {
+                $set: {
+                  lastIntent: "commercial_flyer_missing_handoff",
+                  status: "handoff",
+                  origin: "whatsapp",
+                  channel: "whatsapp",
+                  tenant,
+                },
+              },
+              { upsert: true }
+            );
+          } catch (e) {
+            console.error("❌ lead flyer sem URL:", e?.message || e);
+          }
+        } else {
+          const flyerCaption = String(flyerCfg?.commercialPlanFlyerCaption || "").trim();
+          const sentFlyer = await sendWhatsAppImage(from, flyerUrl, "", { origin: "commercial_plan_flyer" });
+          try {
+            await WaMessage.create({
+              tenant,
+              channel: "whatsapp",
+              origin: null,
+              wamid: sentFlyer?.messages?.[0]?.id,
+              direction: "outbound",
+              from: toPhoneId,
+              to: from,
+              text: "[image:commercial_plan_flyer] " + flyerUrl,
+              raw: sentFlyer,
+            });
+          } catch (e) {
+            console.error("❌ Erro ao salvar outbound flyer comercial:", e?.message || e);
+          }
+
+          if (flyerCaption) {
+            const sentCaption = await sendWhatsAppText(from, flyerCaption);
+            try {
+              await WaMessage.create({
+                tenant,
+                channel: "whatsapp",
+                origin: null,
+                wamid: sentCaption?.messages?.[0]?.id,
+                direction: "outbound",
+                from: toPhoneId,
+                to: from,
+                text: flyerCaption,
+                raw: sentCaption,
+              });
+            } catch (e) {
+              console.error("❌ Erro ao salvar outbound legenda flyer comercial:", e?.message || e);
+            }
+          }
+
+          const sentPrompt = await sendLocationRequest(from, COMMERCIAL_PLAN_FLYER_PROMPT);
+          try {
+            await WaMessage.create({
+              tenant,
+              channel: "whatsapp",
+              origin: null,
+              wamid: sentPrompt?.messages?.[0]?.id,
+              direction: "outbound",
+              from: toPhoneId,
+              to: from,
+              text: COMMERCIAL_PLAN_FLYER_PROMPT,
+              raw: sentPrompt,
+            });
+          } catch (e) {
+            console.error("❌ Erro ao salvar outbound prompt flyer comercial:", e?.message || e);
+          }
+        }
+      }
+    }
+
+    if (commercialPlanFlyerSent) {
+      sent = null;
+    } else if (boletoUrl) {
       try {
         sent = await sendWhatsAppText(from, replyText, { previewUrl: true });
       } catch (e) {
@@ -1610,7 +1848,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
       sent = await sendWhatsAppText(from, replyText);
     }
 
-    if (result && typeof result === "object" && result.requestLocation) {
+    if (!commercialPlanFlyerSent && result && typeof result === "object" && result.requestLocation) {
       const locationPrompt =
         (typeof result.locationPrompt === "string" && result.locationPrompt.trim()) ||
         "Perfeito 👍 Para agilizar sua consulta de cobertura e instalação, toque no botão abaixo e me envie sua localização.";
@@ -1634,7 +1872,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
     }
 
     // salva outbound (fluxo padrão; boleto premium grava texto + CTA no bloco acima)
-    if (!boletoUrl) {
+    if (!boletoUrl && !commercialPlanFlyerSent) {
       try {
         await WaMessage.create({
           tenant,
@@ -1668,7 +1906,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
         {
           $set: {
             lastIntent: intentFromPatch || intentFromResult,
-            lastMessage: replyText,
+            lastMessage: commercialPlanFlyerSent ? COMMERCIAL_PLAN_FLYER_PROMPT : replyText,
             channel: "whatsapp",
             tenant,
             ...(beesweb && beesweb.customerId ? { beeswebCustomerId: String(beesweb.customerId) } : {}),

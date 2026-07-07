@@ -37,6 +37,36 @@ async function fetchWithRetry(url, options, retries = 3, timeoutMs = 10000) {
 }
 
 
+
+function extractMetaErrorCode(meta) {
+  const err = meta && (meta.error || meta.metaError || meta);
+  return Number(err && (err.code || err.error_code || err.errorCode) || 0) || null;
+}
+
+function translateMetaError(meta) {
+  const err = meta && (meta.error || meta.metaError || meta);
+  const code = extractMetaErrorCode(meta);
+  const title = String(err && (err.error_user_title || err.title || err.type || err.message) || "").trim();
+  const details = String(err && (err.error_user_msg || err.message || err.error_data && err.error_data.details || "") || "").trim();
+  const map = {
+    131000: { reason: "Erro temporário Meta.", action: "Tente enviar novamente em alguns minutos." },
+    131009: { reason: "Template inexistente ou inválido.", action: "Sincronize os templates Meta e escolha um template aprovado." },
+    131026: { reason: "Número inválido.", action: "Confira o telefone do cliente antes de reenviar." },
+    131047: { reason: "Fora da janela de 24 horas.", title: "Janela de atendimento encerrada.", action: "Este cliente precisa receber um Template aprovado da Meta.", needsTemplate: true },
+    131051: { reason: "Cliente bloqueou a empresa.", action: "Aguarde o cliente desbloquear o contato para novas mensagens." },
+  };
+  const base = map[code] || { reason: title || details || "Mensagem recusada pela Meta.", action: "Verifique os detalhes técnicos no Histórico." };
+  return {
+    code,
+    title: base.title || "Mensagem não entregue.",
+    reason: base.reason,
+    action: base.action || "Verifique os detalhes técnicos no Histórico.",
+    needsTemplate: !!base.needsTemplate,
+    rawTitle: title,
+    rawDetails: details,
+  };
+}
+
 function inferOriginFromPayload(payload, options = {}) {
   if (options && options.origin) return String(options.origin);
 
@@ -88,6 +118,9 @@ function buildHistoryTextFromPayload(payload) {
 
   if (type === "text") return String(payload?.text?.body || "");
   if (type === "image") return String(payload?.image?.caption || payload?.image?.link || "");
+  if (type === "document") return String(payload?.document?.caption || payload?.document?.filename || payload?.document?.link || "[document]");
+  if (type === "audio") return String(payload?.audio?.link || "[audio]");
+  if (type === "video") return String(payload?.video?.caption || payload?.video?.link || "[video]");
   if (type === "template") return "[template] " + String(payload?.template?.name || "");
   if (type === "interactive") {
     return "[interactive:" + String(payload?.interactive?.type || "unknown") + "] " +
@@ -111,10 +144,27 @@ async function saveOutboundHistory(payload, sent, options = {}) {
       from: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
       to: String(payload?.to || ""),
       text: buildHistoryTextFromPayload(payload),
+      messageType: String(payload?.type || ""),
+      mediaUrl: String(payload?.image?.link || payload?.document?.link || payload?.audio?.link || payload?.video?.link || ""),
       raw: sent,
       deliveryStatus: "sent",
       metaStatus: "sent",
       metaStatusAt: new Date(),
+      templateName: options.templateName || (payload?.type === "template" ? String(payload?.template?.name || "") : ""),
+      languageCode: options.languageCode || (payload?.type === "template" ? String(payload?.template?.language?.code || "") : ""),
+      templateVariables: options.templateVariables || null,
+      templateComponents: options.templateComponents || (payload?.type === "template" ? payload?.template?.components || null : null),
+      fallbackToTemplate: Boolean(options.fallbackToTemplate),
+      operatorId: options.operatorId || "",
+      operatorName: options.operatorName || "",
+      operatorEmail: options.operatorEmail || "",
+      responseKind: options.responseKind || (options.operatorEmail || options.operatorName ? "manual" : (payload?.type === "template" ? "template" : "bot")),
+      auditAction: options.auditAction || "",
+      auditBy: options.auditBy || options.operatorEmail || options.operatorName || "",
+      auditAt: options.auditAction ? new Date() : null,
+      replyToMessageId: options.replyToMessageId || "",
+      replyToText: options.replyToText || "",
+      replyToWamid: options.replyToWamid || "",
     });
   } catch (e) {
     if (String(e?.code) !== "11000") {
@@ -146,7 +196,13 @@ async function sendWhatsAppPayload(payload, options = {}) {
 
   if (!resp.ok) {
     console.error("❌ WhatsApp send error:", data);
-    throw new Error(`WhatsApp send failed: ${resp.status}`);
+    const err = new Error(`WhatsApp send failed: ${resp.status}`);
+    err.status = resp.status;
+    err.meta = data;
+    err.metaError = data?.error || null;
+    err.metaErrorCode = data?.error?.code || null;
+    err.metaErrorSubcode = data?.error?.error_subcode || null;
+    throw err;
   }
 
   await saveOutboundHistory(payload, data, options);
@@ -169,7 +225,7 @@ async function sendWhatsAppText(to, message, options) {
     to,
     type: "text",
     text,
-  });
+  }, options || {});
 }
 
 /**
@@ -188,6 +244,32 @@ async function sendWhatsAppImage(to, imageUrl, caption, options = {}) {
       caption,
     },
   }, options || {});
+}
+
+async function sendWhatsAppMedia(to, mediaType, mediaUrl, caption, filename, options = {}) {
+  const type = String(mediaType || "image").toLowerCase();
+  const link = String(mediaUrl || "").trim();
+  if (!link) throw new Error("sendWhatsAppMedia: mediaUrl vazio");
+  const cap = String(caption || "").trim();
+  const fn = String(filename || "").trim();
+  const payload = { messaging_product: "whatsapp", to, type };
+
+  if (type === "image") {
+    payload.image = { link };
+    if (cap) payload.image.caption = cap;
+  } else if (type === "video") {
+    payload.video = { link };
+    if (cap) payload.video.caption = cap;
+  } else if (type === "audio") {
+    payload.audio = { link };
+  } else {
+    payload.type = "document";
+    payload.document = { link };
+    if (fn) payload.document.filename = fn;
+    if (cap) payload.document.caption = cap;
+  }
+
+  return sendWhatsAppPayload(payload, options || {});
 }
 
 /**
@@ -448,7 +530,9 @@ async function sendWhatsAppDocumentByUploadedId(to, mediaId, filename, caption) 
 module.exports = {
   sendWhatsAppText,
   sendWhatsAppImage,
+  sendWhatsAppMedia,
   sendWhatsAppTemplate,
+  translateMetaError,
   sendLocationRequest,
   sendWhatsAppCtaUrlButton,
   sendDcnetFalarComAtendenteCta,

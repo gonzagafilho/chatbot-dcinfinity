@@ -5,6 +5,9 @@ const LeadSchema = new mongoose.Schema(
     tenant: { type: String, index: true, default: "dcnet" },
     phone: { type: String, index: true }, // whatsapp: número | web:sessionId
     name: { type: String, default: null },
+    avatarUrl: { type: String, default: "" },
+    profilePhotoUrl: { type: String, default: "" },
+    whatsappProfileName: { type: String, default: "" },
     birthday: { type: String, default: null },
     gender: { type: String, default: null },
     isMother: { type: Boolean, default: false },
@@ -17,6 +20,23 @@ const LeadSchema = new mongoose.Schema(
 
     lastMessage: { type: String, default: "" },
     lastIntent: { type: String, default: null },
+    tags: { type: [String], default: [], index: true },
+    internalNotes: { type: String, default: "" },
+    lastCep: { type: String, default: "" },
+    selectedPlan: { type: String, default: "" },
+    lastCampaign: { type: String, default: "" },
+    unreadManual: { type: Boolean, default: false, index: true },
+    cpf: { type: String, default: "", index: true },
+    city: { type: String, default: "", index: true },
+    neighborhood: { type: String, default: "", index: true },
+    dueDate: { type: String, default: "" },
+    lastInvoice: { type: String, default: "" },
+    financialStatus: { type: String, default: "" },
+    connectionStatus: { type: String, default: "" },
+    customerSince: { type: Date, default: null },
+    lastAttendanceAt: { type: Date, default: null },
+    protocol: { type: String, default: "", index: true },
+    timelineEvents: { type: [mongoose.Schema.Types.Mixed], default: [] },
 
     /** Fluxo financeiro DC NET + BeesWeb (sem trust_release automático) */
     financialRetryCount: { type: Number, default: 0 },

@@ -89,12 +89,8 @@ const MENSAGEM_MENU_FINANCEIRO_DOIS =
   "Escolha uma opção:\n\n" + "1️⃣ Boleto\n" + "2️⃣ PIX";
 
 const MENSAGEM_COMERCIAL_NOVO_CLIENTE =
-  "Confira nossos planos:\n\n" +
-  "🔹 350 Mega — R$78,99\n" +
-  "🔹 400 Mega — R$88,99\n" +
-  "🔹 500 Mega — R$98,99\n" +
-  "🔹 600 Mega — R$119,99\n\n" +
-  "👉 Responda com o plano desejado.";
+  "Vou te enviar o panfleto comercial com os planos disponíveis.\n\n" +
+  "Escolha o plano desejado ou envie seu CEP/localização para verificarmos cobertura.";
 
 const MENSAGEM_MENU_CPF_NAO_ENCONTRADO =
   "Não localizamos esse CPF em nosso cadastro.\n\n" +

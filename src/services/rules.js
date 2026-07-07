@@ -29,24 +29,13 @@ const {
 } = require("./dcnetOperationalBeesweb");
 const { isDcnetFinanceFlowIntent } = require("./dcnetCustomerContext");
 
-/** Lista de planos (reutilizada na abertura e quando falta escolha). */
-const LINHA_PLANOS_DCNET =
-  "🔹 350 Mega — R$78,99\n" +
-  "🔹 400 Mega — R$88,99\n" +
-  "🔹 500 Mega — R$98,99\n" +
-  "🔹 600 Mega — R$119,99";
-
 /** Abertura comercial DC NET (web e WhatsApp). */
 const mensagemComercialPadrao =
   "Olá 👋\n" +
   "Seja bem-vindo à *DC NET*.\n\n" +
   "💙 Aqui você encontra internet fibra com velocidade, estabilidade e atendimento de verdade.\n\n" +
-  "📡 Confira nossos planos:\n\n" +
-  "🔹 350 Mega — R$78,99\n" +
-  "🔹 400 Mega — R$88,99\n" +
-  "🔹 500 Mega — R$98,99\n" +
-  "🔹 600 Mega — R$119,99\n\n" +
-  "👉 Responda com o plano desejado para continuarmos seu atendimento.";
+  "Vou te enviar o panfleto comercial com os planos disponíveis.\n\n" +
+  "Depois, escolha o plano desejado ou envie seu CEP/localização para verificarmos cobertura.";
 
 /**
  * Etapa futura: verificação de cobertura por coordenadas (sem integração ativa).
@@ -254,10 +243,15 @@ function interesseComercialSemPlanoEscolhido(ctx) {
 function textoPecaEscolherPlano() {
   return {
     reply:
-      "Perfeito! Para seguir com *cobertura e contratação*, primeiro me diga qual *plano* você deseja:\n\n" +
-      LINHA_PLANOS_DCNET +
-      "\n\n👉 Responda com *1*, *2*, *3* ou *4* — ou *350*, *400*, *500* ou *600*.",
+      "Vou te enviar o panfleto comercial com os planos disponíveis.\n\n" +
+      "Escolha o plano desejado ou envie seu CEP/localização para verificarmos cobertura.",
     falarComAtendenteCta: true,
+    commercialPlanFlyer: true,
+    leadPatch: {
+      lastIntent: "commercial_wait_cep",
+      status: "commercial_flow",
+      beeswebIdentificationSkip: true,
+    },
   };
 }
 
@@ -560,8 +554,9 @@ async function resolveFluxoDcnet(ctx) {
       return {
         reply: MENSAGEM_COMERCIAL_NOVO_CLIENTE,
         intent: "commercial_choose_plan",
+        commercialPlanFlyer: true,
         leadPatch: {
-          lastIntent: "commercial_choose_plan",
+          lastIntent: "commercial_wait_cep",
           status: "commercial_flow",
           beeswebIdentificationSkip: true,
           beeswebCpfFromUnregisteredPhone: false,
@@ -621,8 +616,13 @@ async function resolveFluxoDcnet(ctx) {
     if (isContratarInternet) {
       return {
         reply: MENSAGEM_COMERCIAL_NOVO_CLIENTE,
-        intent: null,
-        leadPatch: { lastIntent: null },
+        intent: "commercial_wait_cep",
+        commercialPlanFlyer: true,
+        leadPatch: {
+          lastIntent: "commercial_wait_cep",
+          status: "commercial_flow",
+          beeswebIdentificationSkip: true,
+        },
         falarComAtendenteCta: false,
       };
     }
@@ -718,19 +718,18 @@ async function resolveFluxoDcnet(ctx) {
     const plano = detectarPlanoEscolhido(ctx?.message);
     if (plano && origin === "whatsapp") {
       const replyPlano =
-        `Perfeito 👍\n\n` +
-        `Você escolheu o plano de *${plano}*.\n\n` +
-        `📍 Agora envie sua localização para seguirmos com o atendimento comercial.`;
+        `Perfeito. Você escolheu o plano de *${plano}*.\n\n` +
+        `Vou te enviar o panfleto comercial e, em seguida, você pode enviar seu CEP ou localização para verificarmos cobertura.`;
       return {
         reply: replyPlano,
-        intent: "commercial_wait_location",
+        intent: "commercial_wait_cep",
+        commercialPlanFlyer: true,
         leadPatch: {
-          lastIntent: "commercial_wait_location",
+          lastIntent: "commercial_wait_cep",
           status: "commercial_flow",
           beeswebIdentificationSkip: true,
+          selectedCommercialPlan: plano,
         },
-        requestLocation: true,
-        locationPrompt: `Plano *${plano}*: toque abaixo para enviar sua localização 👇`,
       };
     }
     if (plano && origin === "web") {
@@ -742,15 +741,31 @@ async function resolveFluxoDcnet(ctx) {
 
     if (origin === "whatsapp" && pareceBairroOuEndereco(ctx)) {
       const replyBairro =
-        "Obrigado pelas informações 👍\n\n" +
-        "Antes de pedir sua *localização*, preciso saber qual *plano* você quer contratar:\n\n" +
-        LINHA_PLANOS_DCNET +
-        "\n\n👉 *1* a *4* ou *350*, *400*, *500*, *600*.";
-      return replyBairro;
+        "Obrigado pelas informações. Vou te enviar o panfleto comercial com os planos disponíveis.\n\n" +
+        "Escolha o plano desejado ou envie seu CEP/localização para verificarmos cobertura.";
+      return {
+        reply: replyBairro,
+        falarComAtendenteCta: true,
+        commercialPlanFlyer: true,
+        leadPatch: {
+          lastIntent: "commercial_wait_cep",
+          status: "commercial_flow",
+          beeswebIdentificationSkip: true,
+        },
+      };
     }
 
     if (deveReceberPropostaComercialInicialDcnet(ctx)) {
-      return { reply: mensagemComercialPadrao, falarComAtendenteCta: true };
+      return {
+        reply: mensagemComercialPadrao,
+        falarComAtendenteCta: true,
+        commercialPlanFlyer: true,
+        leadPatch: {
+          lastIntent: "commercial_wait_cep",
+          status: "commercial_flow",
+          beeswebIdentificationSkip: true,
+        },
+      };
     }
 
     if (interesseComercialSemPlanoEscolhido(ctx)) {

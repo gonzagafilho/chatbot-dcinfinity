@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const MaintenanceBroadcastJob = require("../models/MaintenanceBroadcastJob");
 const Lead = require("../models/Lead");
 const WaMessage = require("../models/WaMessage");
-const { sendWhatsAppText, sendWhatsAppImage } = require("./whatsappSend");
+const { sendWhatsAppText, sendWhatsAppImage, sendWhatsAppTemplate } = require("./whatsappSend");
 const {
   collectAllCustomers,
   filterCustomersByAudienceList,
@@ -206,6 +206,68 @@ async function previewBroadcast(body) {
   };
 }
 
+function isMeta131047(e) {
+  return Number(e?.metaErrorCode || e?.meta?.error?.code || 0) === 131047;
+}
+
+function metaErrorPayload(e) {
+  return e?.meta || (e?.metaError ? { error: e.metaError } : null) || null;
+}
+
+async function saveBroadcastTestFailure({ tenant, to, text, raw, metaStatus = "failed" }) {
+  try {
+    await WaMessage.create({
+      tenant: tenant || "dcnet",
+      channel: "whatsapp",
+      origin: "maintenance_broadcast_test",
+      direction: "outbound",
+      wamid: "",
+      from: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+      to,
+      text,
+      raw,
+      deliveryStatus: "failed",
+      metaStatus,
+      metaStatusAt: new Date(),
+      failedAt: new Date(),
+      metaError: raw,
+    });
+  } catch (err) {
+    console.error("❌ maintenance-broadcast/test save failed WaMessage:", err?.message || err);
+  }
+}
+
+function normalizeTemplateBodyVariables(input) {
+  if (Array.isArray(input)) {
+    return input.map((x) => String(x || "").trim()).filter(Boolean);
+  }
+  return String(input || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .flatMap((line) => line.split(","))
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function buildTemplateComponents({ headerImageUrl, bodyVariables }) {
+  const components = [];
+  const imageUrl = String(headerImageUrl || "").trim();
+  if (imageUrl) {
+    components.push({
+      type: "header",
+      parameters: [{ type: "image", image: { link: imageUrl } }],
+    });
+  }
+  const vars = normalizeTemplateBodyVariables(bodyVariables);
+  if (vars.length) {
+    components.push({
+      type: "body",
+      parameters: vars.map((text) => ({ type: "text", text })),
+    });
+  }
+  return components;
+}
+
 async function sendTestBroadcast(reqBody, adminEmail) {
   const n = normalizePayload(reqBody);
   if (n.error) return { err: 400, body: { ok: false, error: n.error } };
@@ -254,10 +316,42 @@ async function sendTestBroadcast(reqBody, adminEmail) {
     composedTextLength: text.length,
   });
 
-  if (imageUrl) {
-    sent = await sendWhatsAppImage(d, imageUrl, text);
-  } else {
-    sent = await sendWhatsAppText(d, text, {});
+  try {
+    if (imageUrl) {
+      sent = await sendWhatsAppImage(d, imageUrl, text);
+    } else {
+      sent = await sendWhatsAppText(d, text, {});
+    }
+  } catch (e) {
+    const meta = metaErrorPayload(e);
+    await saveBroadcastTestFailure({
+      tenant: n.tenant || "dcnet",
+      to: d,
+      text,
+      raw: meta || { error: String(e?.message || e) },
+    });
+
+    if (isMeta131047(e)) {
+      return {
+        err: 400,
+        body: {
+          ok: false,
+          error: "whatsapp_24h_window_closed",
+          metaCode: 131047,
+          canSendTemplate: true,
+          message:
+            "Este número está fora da janela de atendimento de 24h da Meta. O envio livre foi bloqueado; use um Template Meta aprovado para iniciar a conversa.",
+          templateDefaults: {
+            languageCode: "pt_BR",
+            headerImageUrl: imageUrl || "",
+            bodyVariables: [n.title || "", n.message || "", n.expectedReturn || ""].filter(Boolean),
+          },
+          meta,
+        },
+      };
+    }
+
+    throw e;
   }
 
   try {
@@ -309,6 +403,67 @@ async function sendTestBroadcast(reqBody, adminEmail) {
     },
   };
 }
+
+async function sendTestBroadcastTemplate(reqBody, adminEmail) {
+  const n = normalizePayload(reqBody || {});
+  const tenant = n.tenant || String(reqBody?.tenant || "dcnet").trim() || "dcnet";
+  const testPhoneRaw = String(reqBody?.testPhone != null ? reqBody.testPhone : "").trim();
+  const to = normalizeBrazilPhone(testPhoneRaw);
+  if (!isValidE164ish(to)) {
+    return { err: 400, body: { ok: false, error: "test_phone_invalid" } };
+  }
+
+  const templateName = String(reqBody?.templateName || "").trim();
+  const languageCode = String(reqBody?.languageCode || "pt_BR").trim() || "pt_BR";
+  if (!templateName) {
+    return { err: 400, body: { ok: false, error: "template_name_required" } };
+  }
+
+  const components = buildTemplateComponents({
+    headerImageUrl: reqBody?.headerImageUrl,
+    bodyVariables: reqBody?.bodyVariables,
+  });
+
+  try {
+    const sent = await sendWhatsAppTemplate(to, templateName, languageCode, components, {
+      origin: "maintenance_broadcast_template_test",
+      tenant,
+    });
+    return {
+      ok: true,
+      out: {
+        ok: true,
+        sent: true,
+        mode: "template",
+        sentToMasked: maskFromDigits(to),
+        templateName,
+        languageCode,
+        components,
+        warning: "Template Meta enviado para o número de teste.",
+        meta: sent,
+      },
+    };
+  } catch (e) {
+    const meta = metaErrorPayload(e);
+    await saveBroadcastTestFailure({
+      tenant,
+      to,
+      text: "[template] " + templateName,
+      raw: meta || { error: String(e?.message || e) },
+      metaStatus: "template_failed",
+    });
+    return {
+      err: 400,
+      body: {
+        ok: false,
+        error: "template_send_failed",
+        message: "Falha ao enviar Template Meta. Confira nome, idioma, imagem de cabeçalho e variáveis.",
+        meta,
+      },
+    };
+  }
+}
+
 
 /**
  * Cria lote. Não envia no request.
@@ -642,6 +797,7 @@ module.exports = {
   CONFIRM_PHRASE,
   previewBroadcast,
   sendTestBroadcast,
+  sendTestBroadcastTemplate,
   createBroadcastJob,
   getJobById,
   setJobStatus,

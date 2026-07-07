@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#16a34a" />
+  <meta name="theme-color" content="#020617" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Painel Inteligente DC NET | DC Infinity</title>
-  <link rel="icon" type="image/png" href="/chatbot-admin/icons/favicon.png" />
-  <link rel="apple-touch-icon" href="/chatbot-admin/icons/icon-192.png" />
-  <link rel="manifest" href="/chatbot-admin/manifest.webmanifest" type="application/manifest+json" />
-  <link rel="stylesheet" href="/chatbot-admin/styles.css" />
+  <link rel="icon" type="image/png" href="/chatbot-admin/icons/favicon.png?v=20260707-conversations-no-autopen" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/chatbot-admin/icons/apple-touch-icon.png?v=20260707-conversations-no-autopen" />
+  <link rel="manifest" href="/chatbot-admin/manifest.webmanifest?v=20260707-conversations-no-autopen" type="application/manifest+json" />
+  <link rel="stylesheet" href="/chatbot-admin/styles.css?v=20260707-conversations-no-autopen" />
 </head>
 <body>
   <div class="app-shell">
@@ -24,6 +24,12 @@
         <button type="button" class="sidebar-link" data-tab="messages" role="tab" aria-selected="false" aria-controls="tab-messages" id="tab-btn-messages">Mensagens</button>
         <button type="button" class="sidebar-link" data-tab="maintenance" role="tab" aria-selected="false" aria-controls="tab-maintenance" id="tab-btn-maintenance">Manutenção</button>
         <button type="button" class="sidebar-link" data-tab="beesweb" role="tab" aria-selected="false" aria-controls="tab-beesweb" id="tab-btn-beesweb">Envio em massa</button>
+        <button type="button" class="sidebar-link" data-tab="conversations" role="tab" aria-selected="false" aria-controls="tab-conversations" id="tab-btn-conversations">Conversas</button>
+        <span class="sidebar-group-label" style="display:block;margin:14px 12px 6px;color:#94a3b8;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em">Meta WhatsApp</span>
+        <button type="button" class="sidebar-link" data-tab="meta-templates" role="tab" aria-selected="false" aria-controls="tab-meta-templates" id="tab-btn-meta-templates">Templates</button>
+        <button type="button" class="sidebar-link" data-tab="meta-campaigns" role="tab" aria-selected="false" aria-controls="tab-meta-campaigns" id="tab-btn-meta-campaigns">Campanhas</button>
+        <button type="button" class="sidebar-link" data-tab="meta-history" role="tab" aria-selected="false" aria-controls="tab-meta-history" id="tab-btn-meta-history">Histórico</button>
+        <button type="button" class="sidebar-link" data-tab="meta-stats" role="tab" aria-selected="false" aria-controls="tab-meta-stats" id="tab-btn-meta-stats">Estatísticas</button>
           <button type="button" class="sidebar-link" data-tab="history" role="tab" aria-selected="false" aria-controls="tab-history" id="tab-btn-history">Histórico</button>
           <a
             href="/chatbot-admin/guardian.html"
@@ -56,20 +62,22 @@
         <div class="card" id="loginCard">
           <h2>Entrar</h2>
           <p class="muted">Acesso com a mesma conta de administrador usada no painel de atendimento.</p>
-          <div class="row">
-            <div style="flex:1;min-width:200px">
-              <label for="email">E-mail</label>
-              <input id="email" type="email" autocomplete="username" />
+          <form id="loginForm" novalidate>
+            <div class="row">
+              <div style="flex:1;min-width:200px">
+                <label for="email">E-mail</label>
+                <input id="email" type="email" autocomplete="username" />
+              </div>
+              <div style="flex:1;min-width:200px">
+                <label for="password">Senha</label>
+                <input id="password" type="password" autocomplete="current-password" />
+              </div>
             </div>
-            <div style="flex:1;min-width:200px">
-              <label for="password">Senha</label>
-              <input id="password" type="password" autocomplete="current-password" />
+            <div class="row">
+              <button type="submit" class="btn" id="btnLogin">Entrar</button>
+              <span id="loginStatus" class="muted"></span>
             </div>
-          </div>
-          <div class="row">
-            <button type="button" class="btn" id="btnLogin">Entrar</button>
-            <span id="loginStatus" class="muted"></span>
-          </div>
+          </form>
         </div>
 
         <div class="card editor-card" id="editorCard" style="display:none">
@@ -363,6 +371,32 @@
 
             <section class="tab-panel" id="tab-messages" role="tabpanel" aria-labelledby="tab-btn-messages" hidden>
               <h2 class="section-title">Mensagens operacionais</h2>
+
+              <section class="panel-block panel-block--config" aria-labelledby="commercialFlyerTitle">
+                <h3 class="subsection-title" id="commercialFlyerTitle">PANFLETO COMERCIAL</h3>
+                <label class="muted"><input type="checkbox" id="commercialPlanFlyerEnabled" /> Ativar panfleto comercial</label>
+
+                <label for="commercialPlanFlyerFile">Imagem do panfleto</label>
+                <div class="campaign-upload-controls">
+                  <input type="file" id="commercialPlanFlyerFile" accept="image/png,image/jpeg,image/webp" />
+                  <button type="button" class="btn2" id="btnUploadCommercialPlanFlyer">Upload da imagem</button>
+                </div>
+                <p class="muted" style="margin:8px 0">ou</p>
+
+                <label for="commercialPlanFlyerImageUrl">URL da imagem</label>
+                <input id="commercialPlanFlyerImageUrl" type="url" placeholder="https://..." autocomplete="off" />
+                <img id="commercialPlanFlyerPreview" class="preview" alt="Prévia do panfleto comercial" hidden />
+
+                <label for="commercialPlanFlyerCaption">Legenda do panfleto</label>
+                <textarea id="commercialPlanFlyerCaption" placeholder="Legenda enviada junto com a imagem"></textarea>
+
+                <div class="row" style="margin-top:10px">
+                  <button type="button" class="btn" id="btnSaveCommercialFlyer">Salvar</button>
+                  <span id="commercialFlyerUploadStatus" class="muted" aria-live="polite"></span>
+                </div>
+              </section>
+
+              <h3 class="subsection-title">Operacionais</h3>
               <label>Manutenção (texto)</label><textarea id="o_maintenanceMessage"></textarea>
               <label>Instabilidade</label><textarea id="o_instabilityMessage"></textarea>
               <label>Retorno previsto</label><textarea id="o_expectedReturnMessage"></textarea>
@@ -378,11 +412,202 @@
               <label>ETA (ISO opcional, ex.: 2026-12-31T18:00:00.000Z)</label><input id="m_eta" type="text" placeholder="vazio = sem ETA" />
             </section>
 
-                          <section class="tab-panel" id="tab-history" role="tabpanel" aria-labelledby="tab-btn-history" hidden>
-                <h2 class="section-title">Histórico de Envios</h2>
-                <p class="muted">Lista real dos envios registrados pelo sistema: campanhas, testes, D+2, D-3 e reativação.</p>
-                <div class="d-history" id="send_history">Carregue o painel após login…</div>
-              </section>
+
+            <section class="tab-panel" id="tab-conversations" role="tabpanel" aria-labelledby="tab-btn-conversations" hidden>
+              <div class="crm-top-stats" id="conversationCrmStats"></div>
+              <div class="crm-app crm-wa crm-whatsapp-shell" id="crmConversationGrid">
+                <nav class="crm-rail" aria-label="Atalhos WhatsApp CRM">
+                  <div class="crm-rail__logo">DC</div>
+                  <button type="button" class="is-active" data-tab="conversations" title="Conversas">💬</button>
+                  <button type="button" data-tab="beesweb" title="Campanhas">📣</button>
+                  <button type="button" data-tab="meta-templates" title="Templates">☑</button>
+                  <button type="button" data-tab="history" title="Histórico">🕘</button>
+                  <button type="button" data-tab="messages" title="Configurações">⚙</button>
+                  <a href="/chatbot-admin/guardian.html" target="_blank" rel="noopener noreferrer" title="Guardian">🛡</a>
+                </nav>
+
+                <aside class="crm-sidebar crm-conversation-list">
+                  <div class="crm-sidebar__top">
+                    <div>
+                      <h2>Conversas</h2>
+                      <p>Central WhatsApp DC NET</p>
+                    </div>
+                    <button type="button" class="crm-icon-btn" id="btnConversationsRefresh" title="Atualizar">↻</button>
+                  </div>
+                  <div class="crm-search">
+                    <span aria-hidden="true">🔍</span>
+                    <input id="conversationSearch" type="search" placeholder="Buscar ou começar uma conversa" autocomplete="off" />
+                  </div>
+                  <div class="crm-alert-controls">
+                    <button type="button" id="btnConversationSound" title="Ativar/desativar som">Som</button>
+                    <button type="button" id="btnConversationNotify" title="Permitir notificações do navegador">Notificações</button>
+                  </div>
+                  <div class="crm-filter-chips" id="conversationFilterChips">
+                    <button type="button" class="is-active" data-conv-filter="all">Tudo</button>
+                    <button type="button" data-conv-filter="unread">Não lidas</button>
+                    <button type="button" data-conv-filter="favorite">Favoritas</button>
+                    <button type="button" data-conv-filter="Comercial">Comercial</button>
+                    <button type="button" data-conv-filter="Financeiro">Financeiro</button>
+                    <button type="button" data-conv-filter="Suporte">Suporte</button>
+                    <button type="button" data-conv-filter="failed">Falhas</button>
+                  </div>
+                  <div id="conversationList" class="crm-chat-list">Carregando...</div>
+                </aside>
+
+                <main class="crm-thread crm-chat-panel">
+                  <div class="crm-thread__header">
+                    <button type="button" class="crm-back-btn" id="btnConversationBack">←</button>
+                    <div class="crm-avatar" id="conversationHeaderAvatar">?</div>
+                    <div class="crm-thread__identity">
+                      <strong id="conversationTitle">Selecione uma conversa</strong>
+                      <span id="conversationSubtitle">Timeline completa do WhatsApp.</span>
+                    </div>
+                    <div class="crm-thread__actions">
+                      <button type="button" class="crm-soft-btn" id="btnConversationHeaderWhatsApp" title="Abrir WhatsApp">WhatsApp</button>
+                      <button type="button" class="crm-icon-btn" id="btnConversationSearch" title="Pesquisar">⌕</button>
+                      <button type="button" class="crm-icon-btn" id="btnConversationToggleLead" title="Etiquetas e dados">🏷</button>
+                      <button type="button" class="crm-icon-btn" id="btnConversationMenu" title="Menu">⋮</button>
+                      <button type="button" class="crm-soft-btn warn" id="btnConversationClear">Limpar conversa</button>
+                    </div>
+                  </div>
+                  <div id="conversationMessages" class="crm-messages">Selecione uma conversa à esquerda.</div>
+                  <div id="conversationReplyContext" class="crm-reply-context" hidden></div>
+                  <div id="conversationAttachmentPreview" class="crm-attachment-preview" hidden></div>
+                  <div class="crm-composer">
+                    <button type="button" class="crm-emoji" title="Emoji">😊</button>
+                    <label class="crm-attach" title="Anexar arquivo">📎
+                      <input id="conversationReplyFile" type="file" accept="image/*,application/pdf,audio/*,video/*" hidden />
+                    </label>
+                    <input id="conversationReplyMediaUrl" type="hidden" autocomplete="off" />
+                    <input id="conversationReplyMediaType" type="hidden" autocomplete="off" />
+                    <input id="conversationReplyFilename" type="hidden" autocomplete="off" />
+                    <button type="button" class="crm-camera" title="Anexar imagem">📷</button>
+                    <button type="button" class="crm-mic" title="Áudio em preparação">🎤</button>
+                    <button type="button" class="crm-quick" id="btnConversationQuickReplies" title="Respostas rápidas">⚡</button>
+                    <button type="button" class="crm-ai" id="btnConversationSuggestReply" title="Sugerir resposta">✨</button>
+                    <textarea id="conversationReplyText" rows="1" placeholder="Digite uma mensagem"></textarea>
+                    <button type="button" class="crm-send" id="btnConversationSend" title="Enviar">➤</button>
+                    <p id="conversationSendStatus" aria-live="polite"></p>
+                  </div>
+                </main>
+
+                <aside class="crm-lead-panel" id="conversationLeadPanel">
+                  <button type="button" class="crm-lead-close" id="btnConversationCloseLead">Fechar Dados</button>
+                  <div id="conversationLeadBox" class="crm-lead-empty">Nenhuma conversa selecionada.</div>
+                  <div class="crm-lead-actions">
+                    <button type="button" id="btnConversationAssume">Assumir</button>
+                    <button type="button" id="btnConversationResolve">Finalizar</button>
+                    <button type="button" id="btnConversationRelease">Liberar</button>
+                    <button type="button" id="btnConversationReopen">Reabrir</button>
+                    <button type="button" id="btnConversationOpenWhatsApp">WhatsApp</button>
+                    <button type="button" id="btnConversationCopyPhone">Copiar</button>
+                  </div>
+                  <h3>Etiquetas</h3>
+                  <div id="conversationTags" class="crm-tags"></div>
+                  <h3>Observações internas</h3>
+                  <textarea id="conversationInternalNotes" rows="5" placeholder="Não é enviado ao cliente."></textarea>
+                  <button type="button" class="crm-save" id="btnConversationSaveLead">Salvar dados</button>
+                  <p id="conversationLeadStatus" class="muted" aria-live="polite"></p>
+                </aside>
+              </div>
+              <div id="conversationContextMenu" class="crm-context-menu" hidden>
+                <button type="button" data-conv-menu-action="reply">↩ Responder</button>
+                <button type="button" data-conv-menu-action="forward">↗ Encaminhar</button>
+                <button type="button" data-conv-menu-action="transfer">⇄ Transferir atendimento</button>
+                <button type="button" data-conv-menu-action="favorite">☆ Favoritar</button>
+                <button type="button" data-conv-menu-action="unread">● Marcar como não lida</button>
+                <button type="button" data-conv-menu-action="archive">▣ Arquivar / Ocultar da caixa</button>
+                <button type="button" class="danger" data-conv-menu-action="delete">🗑 Apagar conversa</button>
+              </div>
+              <div id="conversationQuickRepliesModal" class="crm-modal" hidden>
+                <div class="crm-modal__box">
+                  <div class="crm-modal__head">
+                    <strong>Respostas rápidas</strong>
+                    <button type="button" data-close-conv-modal>×</button>
+                  </div>
+                  <div id="conversationQuickReplyList" class="crm-quick-list"></div>
+                </div>
+              </div>
+              <div id="conversationMetaDetailsModal" class="crm-modal" hidden>
+                <div class="crm-modal__box">
+                  <div class="crm-modal__head">
+                    <strong>Detalhes técnicos Meta</strong>
+                    <button type="button" data-close-conv-modal>×</button>
+                  </div>
+                  <pre id="conversationMetaDetailsJson"></pre>
+                </div>
+              </div>
+              <div id="conversationTemplateModal" class="crm-modal" hidden>
+                <div class="crm-modal__box crm-modal__box--wide">
+                  <div class="crm-modal__head">
+                    <strong>Enviar Template Meta</strong>
+                    <button type="button" data-close-conv-modal>×</button>
+                  </div>
+                  <p class="muted">Escolha um template aprovado. O nome e idioma são preenchidos automaticamente.</p>
+                  <div id="conversationTemplateList" class="crm-template-list">Carregando templates...</div>
+                  <div id="conversationTemplateVars" class="crm-template-vars"></div>
+                  <p id="conversationTemplateStatus" class="muted" aria-live="polite"></p>
+                  <div class="crm-modal__actions">
+                    <button type="button" data-close-conv-modal>Cancelar</button>
+                    <button type="button" class="primary" id="btnConversationSendTemplate">Enviar Template</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="tab-panel" id="tab-history" role="tabpanel" aria-labelledby="tab-btn-history" hidden>
+              <h2 class="section-title">Histórico WhatsApp</h2>
+              <p class="muted">Tudo que entrou e saiu pelo WhatsApp: recebidas, enviadas, falhas, templates, campanhas, comercial, financeiro e suporte.</p>
+
+              <div class="panel-block">
+                <div class="row" style="gap:10px;align-items:end;flex-wrap:wrap">
+                  <div style="min-width:180px;flex:1">
+                    <label for="waHistoryFilter">Filtro</label>
+                    <select id="waHistoryFilter">
+                      <option value="all">Todos</option>
+                      <option value="inbound">Recebidas</option>
+                      <option value="outbound">Enviadas</option>
+                      <option value="failed">Falhas</option>
+                      <option value="templates">Templates</option>
+                      <option value="campaigns">Campanhas</option>
+                      <option value="commercial">Comercial</option>
+                      <option value="financial">Financeiro</option>
+                      <option value="support">Suporte</option>
+                    </select>
+                  </div>
+                  <div style="min-width:180px;flex:1">
+                    <label for="waHistoryPhone">Telefone</label>
+                    <input id="waHistoryPhone" type="text" inputmode="tel" placeholder="DDD + número" autocomplete="off" />
+                  </div>
+                  <div style="min-width:220px;flex:2">
+                    <label for="waHistorySearch">Busca</label>
+                    <input id="waHistorySearch" type="search" placeholder="telefone, nome, texto, template ou status" autocomplete="off" />
+                  </div>
+                  <div style="min-width:150px">
+                    <label for="waHistoryDateFrom">De</label>
+                    <input id="waHistoryDateFrom" type="date" />
+                  </div>
+                  <div style="min-width:150px">
+                    <label for="waHistoryDateTo">Até</label>
+                    <input id="waHistoryDateTo" type="date" />
+                  </div>
+                  <button type="button" class="btn" id="btnWaHistoryRefresh">Atualizar</button>
+                </div>
+              </div>
+
+              <div class="d-history" id="send_history">Carregue o painel após login…</div>
+              <div class="row" style="justify-content:center;margin-top:14px">
+                <button type="button" class="btn2" id="btnWaHistoryMore" hidden>Carregar mais</button>
+              </div>
+
+              <div class="panel-block" id="waHistoryDetails" hidden>
+                <div class="row" style="justify-content:space-between;align-items:center">
+                  <h3 class="subsection-title" style="margin:0">Detalhes da mensagem</h3>
+                  <button type="button" class="btn2" id="btnWaHistoryCloseDetails">Fechar</button>
+                </div>
+                <pre id="waHistoryDetailsJson" class="result-pre"></pre>
+              </div>
+            </section>
 
 <section class="tab-panel" id="tab-beesweb" role="tabpanel" aria-labelledby="tab-btn-beesweb" hidden>
               <h2 class="section-title">Envio de mensagens para clientes</h2>
@@ -426,6 +651,12 @@
                 <label for="mb_testPhone">Número para teste (com DDD)</label>
                 <input id="mb_testPhone" type="text" inputmode="tel" placeholder="Com DDD e código do país se necessário" autocomplete="off" />
                 <p class="muted" style="margin-top:6px">Enviaremos <strong>uma</strong> mensagem de teste. O envio em lote em si só ocorre após a confirmação abaixo.</p>
+
+                <div class="panel-block panel-block--config" id="mb_templatePanel" style="margin-top:14px">
+                  <h3 class="panel-block__kicker">Template Meta</h3>
+                  <p class="muted">Templates aprovados são escolhidos na Central Meta. O operador não precisa digitar nome, idioma ou JSON.</p>
+                  <button type="button" class="btn2" data-tab="meta-templates">Abrir Central de Templates</button>
+                </div>
               </div>
 
               <div class="row beesweb-actions beesweb-actions--preview">
@@ -482,6 +713,95 @@
                 <pre id="mb_result" class="result-pre" aria-live="polite">(Ainda sem envio.)</pre>
               </div>
             </section>
+
+            <section class="tab-panel" id="tab-meta-templates" role="tabpanel" aria-labelledby="tab-btn-meta-templates" hidden>
+              <h2 class="section-title">Templates Meta</h2>
+              <div class="panel-block">
+                <div class="row" style="align-items:center;justify-content:space-between;gap:12px">
+                  <div>
+                    <h3 class="panel-block__kicker">Central de Templates</h3>
+                    <p class="muted" style="margin:0">Lista sincronizada diretamente da conta WhatsApp Business da Meta.</p>
+                  </div>
+                  <button type="button" class="btn" id="btnMetaSyncTemplates">Sincronizar Templates</button>
+                </div>
+                <p id="metaTemplatesStatus" class="muted" aria-live="polite"></p>
+              </div>
+              <div class="panel-block">
+                <h3 class="subsection-title">Favoritos</h3>
+                <div id="metaFavorites" class="row" style="gap:8px;flex-wrap:wrap"></div>
+              </div>
+              <div class="panel-block">
+                <h3 class="subsection-title">Teste geral de templates aprovados</h3>
+                <p class="muted">Envia sempre via Template Meta, sem envio livre, para validar funcionamento fora da janela de 24h.</p>
+                <div class="row" style="gap:10px;align-items:end;flex-wrap:wrap">
+                  <div style="min-width:220px;flex:1">
+                    <label for="metaTemplateTestPhone">Número de teste</label>
+                    <input id="metaTemplateTestPhone" type="text" inputmode="tel" placeholder="556199999999" autocomplete="off" />
+                  </div>
+                  <div style="min-width:260px;flex:2">
+                    <label for="metaTemplateTestHeaderImage">Header image opcional</label>
+                    <input id="metaTemplateTestHeaderImage" type="url" placeholder="https://..." autocomplete="off" />
+                  </div>
+                  <button type="button" class="btn2" id="btnMetaRenderTemplateTests">Testar templates aprovados</button>
+                </div>
+                <div id="metaTemplateTestList" class="meta-template-test-list"></div>
+              </div>
+              <div class="panel-block">
+                <h3 class="subsection-title">Todos os templates</h3>
+                <div id="metaTemplatesTable" class="d-history">Clique em Sincronizar Templates para atualizar a lista.</div>
+              </div>
+            </section>
+
+            <section class="tab-panel" id="tab-meta-campaigns" role="tabpanel" aria-labelledby="tab-btn-meta-campaigns" hidden>
+              <h2 class="section-title">Enviar Template Meta</h2>
+              <div class="panel-block">
+                <h3 class="panel-block__kicker">Template selecionado</h3>
+                <p id="metaSelectedTemplateName" style="font-weight:800;margin:0 0 6px">Nenhum template selecionado</p>
+                <p id="metaSelectedTemplateMeta" class="muted" style="margin:0">Escolha um template na tela Templates.</p>
+              </div>
+              <div class="panel-block">
+                <h3 class="panel-block__kicker">Envio inteligente</h3>
+                <label for="metaSendPhone">Número do cliente</label>
+                <input id="metaSendPhone" type="text" inputmode="tel" placeholder="DDD + telefone" autocomplete="off" />
+                <label for="metaFreeMessage">Mensagem livre para tentar primeiro</label>
+                <textarea id="metaFreeMessage" rows="4" placeholder="Se estiver dentro da janela de 24h, esta mensagem será enviada. Se a Meta retornar 131047, o sistema troca automaticamente para o template selecionado."></textarea>
+                <div id="metaHeaderImageUrlWrap" hidden>
+                  <label for="metaHeaderImageUrl">Imagem do header</label>
+                  <input id="metaHeaderImageUrl" type="url" placeholder="https://..." autocomplete="off" />
+                </div>
+                <div id="metaTemplateVariables"></div>
+                <button type="button" class="btn" id="btnMetaSendTemplate" style="margin-top:12px">Enviar</button>
+              </div>
+              <div class="result-block">
+                <p class="result-block-label">Resultado</p>
+                <pre id="metaSendResult" class="result-pre" aria-live="polite">(Aguardando envio.)</pre>
+              </div>
+            </section>
+
+            <section class="tab-panel" id="tab-meta-history" role="tabpanel" aria-labelledby="tab-btn-meta-history" hidden>
+              <h2 class="section-title">Histórico Meta</h2>
+              <div class="row" style="justify-content:space-between;align-items:center">
+                <p class="muted">Envios por template, fallback automático, retorno da Meta e ID da mensagem.</p>
+                <button type="button" class="btn2" id="btnMetaReloadHistory">Atualizar</button>
+              </div>
+              <div id="metaHistoryList" class="d-history">Carregue o painel após login.</div>
+            </section>
+
+            <section class="tab-panel" id="tab-meta-stats" role="tabpanel" aria-labelledby="tab-btn-meta-stats" hidden>
+              <h2 class="section-title">Estatísticas Meta</h2>
+              <div class="row" style="justify-content:flex-end"><button type="button" class="btn2" id="btnMetaReloadStats">Atualizar</button></div>
+              <div class="pro-grid dash-metrics">
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Templates aprovados</strong><div class="metric-value" id="metaStatApproved">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Em análise</strong><div class="metric-value" id="metaStatPending">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Rejeitados</strong><div class="metric-value" id="metaStatRejected">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Quantidade enviada</strong><div class="metric-value" id="metaStatSent">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Entregues</strong><div class="metric-value" id="metaStatDelivered">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Lidas</strong><div class="metric-value" id="metaStatRead">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Falhas</strong><div class="metric-value" id="metaStatFailed">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Taxa de entrega</strong><div class="metric-value" id="metaStatDeliveryRate">-</div></div>
+                <div class="pro-card pro-card--feat pro-card--metric"><strong>Taxa de leitura</strong><div class="metric-value" id="metaStatReadRate">-</div></div>
+              </div>
+            </section>
           </div>
 
           <div class="save-bar">
@@ -492,7 +812,7 @@
       </div>
     </div>
   </div>
-  <script src="/chatbot-admin/panel.js" defer></script>
+  <script src="/chatbot-admin/panel.js?v=20260707-conversations-no-autopen" defer></script>
   <script
     async
     defer
