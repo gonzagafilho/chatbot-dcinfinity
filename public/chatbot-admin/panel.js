@@ -1783,9 +1783,53 @@ let conversationsPollTimer = null;
     };
   }
 
+  function conversationMediaFallbackText(m) {
+    var text = String(m && m.text || "");
+    return text.replace(/^\[whatsapp:[^\]]+\]\s*/i, "").replace(/^LOCATION:[^\s]+\s*/i, "").trim();
+  }
+
+  function conversationLocationMeta(m) {
+    var lat = m && m.latitude != null ? Number(m.latitude) : null;
+    var lng = m && m.longitude != null ? Number(m.longitude) : null;
+    if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && m && /^LOCATION:/i.test(String(m.text || ""))) {
+      var parts = String(m.text || "").replace(/^LOCATION:/i, "").split(",");
+      lat = Number(parts[0]);
+      lng = Number(parts[1]);
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    var q = encodeURIComponent(lat + "," + lng);
+    return { lat: lat, lng: lng, url: "https://www.google.com/maps/search/?api=1&query=" + q, label: (m && (m.locationName || m.locationAddress)) || (lat + ", " + lng) };
+  }
+
+  function conversationMediaAction(url, label) {
+    if (!url) return "";
+    return '<a class="crm-media-open" href="' + convEsc(url) + '" target="_blank" rel="noopener" download>' + convEsc(label || "Abrir mídia") + '</a>';
+  }
+
+  function renderConversationMediaCard(m) {
+    var type = String(m.messageType || "text").toLowerCase();
+    var label = convMediaLabel(type);
+    var url = m.mediaUrl || "";
+    var name = m.filename || m.caption || conversationMediaFallbackText(m) || label || "Mídia";
+    var caption = m.caption || conversationMediaFallbackText(m);
+    if (type === "location") {
+      var loc = conversationLocationMeta(m);
+      if (!loc) return '<div class="crm-media-card crm-media-card--empty"><strong>' + convEsc(label || "Localização") + '</strong><span>Localização recebida sem coordenadas disponíveis.</span></div>';
+      return '<div class="crm-location-card crm-media-card"><strong>' + convEsc(label || "Localização") + '</strong><span>' + convEsc(loc.label) + '</span><a class="crm-media-open" href="' + convEsc(loc.url) + '" target="_blank" rel="noopener">Abrir no Google Maps</a></div>';
+    }
+    if (!label) return "";
+    var preview = "";
+    if (type === "image" && url) preview = '<a href="' + convEsc(url) + '" target="_blank" rel="noopener"><img class="crm-media-image" src="' + convEsc(url) + '" alt="" loading="lazy" /></a>';
+    else if (type === "audio" && url) preview = '<audio controls preload="metadata" src="' + convEsc(url) + '"></audio>';
+    else if (type === "video" && url) preview = '<video controls preload="metadata" src="' + convEsc(url) + '"></video>';
+    else if (url) preview = '<a class="crm-doc-card" href="' + convEsc(url) + '" target="_blank" rel="noopener"><b>Documento</b><span>' + convEsc(name) + '</span></a>';
+    else preview = '<div class="crm-media-unavailable"><b>' + convEsc(name) + '</b><span>Arquivo recebido pelo WhatsApp. Mídia original disponível na Meta/telefone do cliente.</span></div>';
+    return '<div class="crm-media-card type-' + convEsc(type) + '"><div class="crm-media-head"><strong>' + convEsc(label) + '</strong><span>' + convEsc(m.direction === "inbound" ? "Recebida" : "Enviada") + '</span></div>' + preview + (caption && caption !== name ? '<p>' + convEsc(caption) + '</p>' : '') + conversationMediaAction(url, type === "document" ? "Baixar/abrir documento" : "Baixar/abrir mídia") + '</div>';
+  }
+
   function conversationMessageSummaryForReply(m) {
     if (!m) return "";
-    return convMessageSummary(m.text || m.friendlyTemplateName || getFriendlyTemplateName(m.templateName) || m.mediaUrl || convMediaLabel(m.messageType) || "Mensagem").slice(0, 120);
+    return convMessageSummary(m.caption || conversationMediaFallbackText(m) || m.friendlyTemplateName || getFriendlyTemplateName(m.templateName) || m.mediaUrl || convMediaLabel(m.messageType) || "Mensagem").slice(0, 120);
   }
 
   function renderConversationReplyContext() {
@@ -1821,12 +1865,8 @@ let conversationsPollTimer = null;
     if (m.hiddenFromInbox) body += '<div class="crm-mini-badge" style="margin-bottom:5px;display:inline-flex">ocultada da caixa</div>';
     if (m.replyToText) body += '<div class="crm-reply-quote"><b>Respondendo a:</b><span>' + convEsc(m.replyToText) + '</span></div>';
     if (m.templateName) body += '<div class="crm-template-chip crm-template-chip-friendly"><b>' + convEsc(m.friendlyTemplateName || getFriendlyTemplateName(m.templateName)) + '</b><span>Mensagem enviada por template Meta.</span></div>';
-    var mediaLabel = convMediaLabel(type);
-    if (mediaLabel && !m.templateName) body += '<div class="crm-location-card">' + convEsc(mediaLabel) + '</div>';
-    if (type === "image" && m.mediaUrl) body += '<a href="' + convEsc(m.mediaUrl) + '" target="_blank" rel="noopener"><img src="' + convEsc(m.mediaUrl) + '" alt="" /></a>';
-    if (type === "audio" && m.mediaUrl) body += '<audio controls src="' + convEsc(m.mediaUrl) + '"></audio>';
-    if (type === "video" && m.mediaUrl) body += '<video controls src="' + convEsc(m.mediaUrl) + '"></video>';
-    if (type === "document" && m.mediaUrl) body += '<a class="crm-doc-card" href="' + convEsc(m.mediaUrl) + '" target="_blank" rel="noopener">📄 Abrir documento</a>';
+    var mediaCard = !m.templateName ? renderConversationMediaCard(m) : "";
+    if (mediaCard) body += mediaCard;
     if (failed) {
       var t = translatedError || {};
       if (Number(t.code || 0) === 131047) {
@@ -1848,7 +1888,8 @@ let conversationsPollTimer = null;
           '<button type="button" data-conv-meta-details-id="' + convEsc(m.id) + '">Ver detalhes</button>' +
         '</div></div>';
     } else {
-      body += '<div class="crm-bubble-text">' + convEsc(m.text || (m.mediaUrl ? m.mediaUrl : "")) + '</div>';
+      var plainText = type === "location" || mediaCard ? conversationMediaFallbackText(m) : (m.text || (m.mediaUrl ? m.mediaUrl : ""));
+      if (plainText) body += '<div class="crm-bubble-text">' + convEsc(plainText) + '</div>';
     }
     var statusText = convTimelineStatus(m);
     var stForClass = String(m.status || m.deliveryStatus || m.metaStatus || "").toLowerCase();
@@ -2241,9 +2282,9 @@ let conversationsPollTimer = null;
     var name = conversationAttachment.filename || "anexo";
     var preview = "";
     if (type === "image") preview = '<img src="' + convEsc(url) + '" alt="" />';
-    else if (type === "audio") preview = '<audio controls src="' + convEsc(url) + '"></audio>';
-    else if (type === "video") preview = '<video controls src="' + convEsc(url) + '"></video>';
-    else preview = '<span class="crm-doc-card">📄 ' + convEsc(name) + '</span>';
+    else if (type === "audio") preview = '<audio controls preload="metadata" src="' + convEsc(url) + '"></audio>';
+    else if (type === "video") preview = '<video controls preload="metadata" src="' + convEsc(url) + '"></video>';
+    else preview = '<span class="crm-doc-card"><b>Documento</b><span>' + convEsc(name) + '</span></span>';
     root.hidden = false;
     root.innerHTML = '<div>' + preview + '<strong>' + convEsc(name) + '</strong></div><button type="button" data-clear-conv-attachment>×</button>';
   }
@@ -2474,13 +2515,20 @@ let conversationsPollTimer = null;
     if (!rows.length) { root.innerHTML = '<p class="muted">Nenhum evento encontrado neste filtro.</p>'; return; }
     root.innerHTML = rows.map(function (r) {
       var when = r.at ? new Date(r.at).toLocaleString("pt-BR") : "Sem data";
-      var details = r.details ? Object.keys(r.details).filter(function (k) { return r.details[k] !== null && r.details[k] !== undefined && r.details[k] !== ""; }).slice(0, 6).map(function (k) { return '<span><b>' + convEsc(k) + '</b> ' + convEsc(Array.isArray(r.details[k]) ? r.details[k].join(', ') : String(r.details[k])) + '</span>'; }).join('') : '';
+      var mediaDetail = "";
+      if (r.details && r.details.mediaUrl) mediaDetail += '<a class="crm-media-open" href="' + convEsc(r.details.mediaUrl) + '" target="_blank" rel="noopener" download>Abrir mídia</a>';
+      if (r.details && r.details.latitude != null && r.details.longitude != null) {
+        var mapUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(r.details.latitude + "," + r.details.longitude);
+        mediaDetail += '<a class="crm-media-open" href="' + convEsc(mapUrl) + '" target="_blank" rel="noopener">Google Maps</a>';
+      }
+      var details = r.details ? Object.keys(r.details).filter(function (k) { return r.details[k] !== null && r.details[k] !== undefined && r.details[k] !== ""; }).slice(0, 8).map(function (k) { return '<span><b>' + convEsc(k) + '</b> ' + convEsc(Array.isArray(r.details[k]) ? r.details[k].join(', ') : String(r.details[k])) + '</span>'; }).join('') : '';
       return '<article class="crm-history-item tone-' + convEsc(r.tone || 'default') + '">' +
         '<div class="crm-history-item__marker"></div>' +
         '<div class="crm-history-item__body">' +
           '<div class="crm-history-item__top"><strong>' + convEsc(r.label || conversationHistoryTypeLabel(r.type)) + '</strong><span>' + convEsc(when) + '</span></div>' +
           '<p>' + convEsc(r.summary || '-') + '</p>' +
           '<div class="crm-history-item__meta"><span>' + convEsc(conversationHistoryTypeLabel(r.type)) + '</span>' + (r.by ? '<span>' + convEsc(r.by) + '</span>' : '') + '</div>' +
+          (mediaDetail ? '<div class="crm-history-item__actions">' + mediaDetail + '</div>' : '') +
           (details ? '<div class="crm-history-item__details">' + details + '</div>' : '') +
         '</div>' +
       '</article>';

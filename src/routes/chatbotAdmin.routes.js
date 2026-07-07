@@ -70,6 +70,11 @@ const CONVERSATION_ATTACHMENT_ALLOW = new Set([
   "image/jpeg",
   "image/webp",
   "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
   "audio/mpeg",
   "audio/mp4",
   "audio/ogg",
@@ -1417,6 +1422,7 @@ router.get("/chatbot-admin/whatsapp-history", requireAdminAuth, async (req, res)
       const lead = leadByPhone.get(digitsOnlyHistory(ph)) || null;
       const messageType = inferWaHistoryType(row);
       const statusValue = inferWaHistoryStatus(row);
+      const mediaMeta = extractConversationMediaMeta(row);
       return {
         id: String(row._id),
         tenant: row.tenant || tenant,
@@ -1426,6 +1432,14 @@ router.get("/chatbot-admin/whatsapp-history", requireAdminAuth, async (req, res)
         text: row.text || "",
         messageType,
         mediaUrl: row.mediaUrl || (/^https?:\/\//i.test(String(row.text || "")) ? String(row.text || "") : ""),
+        mediaId: mediaMeta.mediaId,
+        mimeType: mediaMeta.mimeType,
+        filename: mediaMeta.filename || row.filename || "",
+        caption: mediaMeta.caption,
+        latitude: mediaMeta.latitude,
+        longitude: mediaMeta.longitude,
+        locationName: mediaMeta.locationName,
+        locationAddress: mediaMeta.locationAddress,
         templateName: row.templateName || "",
         languageCode: row.languageCode || "",
         origin: row.origin || "WhatsApp",
@@ -1493,13 +1507,40 @@ function getFriendlyTemplateName(templateName) {
   return map[key] || key;
 }
 
+function extractWaRawMessage(row) {
+  return row?.raw?.entry?.[0]?.changes?.[0]?.value?.messages?.[0] || row?.raw?.messages?.[0] || null;
+}
+
 function inferConversationMessageType(row) {
-  const rawType = String(row.messageType || row.raw?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.type || "").toLowerCase();
+  const rawMessage = extractWaRawMessage(row);
+  const rawType = String(row.messageType || rawMessage?.type || "").toLowerCase();
   if (rawType) return rawType;
   if (row.templateName) return "template";
+  if (String(row.text || "").startsWith("LOCATION:")) return "location";
   if (String(row.text || "").startsWith("[template]")) return "template";
   if (String(row.text || "").startsWith("[interactive:")) return "interactive";
   return "text";
+}
+
+function extractConversationMediaMeta(row) {
+  const rawMessage = extractWaRawMessage(row) || {};
+  const type = inferConversationMessageType(row);
+  const media = rawMessage[type] || {};
+  const text = String(row?.text || "");
+  const location = rawMessage.location || null;
+  const locationTextMatch = text.match(/^LOCATION:([-0-9.]+),([-0-9.]+)/i);
+  const latitude = location?.latitude ?? (locationTextMatch ? Number(locationTextMatch[1]) : null);
+  const longitude = location?.longitude ?? (locationTextMatch ? Number(locationTextMatch[2]) : null);
+  return {
+    mediaId: row?.mediaId || media.id || "",
+    mimeType: row?.mimeType || media.mime_type || "",
+    filename: row?.filename || media.filename || "",
+    caption: media.caption || (text.startsWith("[whatsapp:") ? text.replace(/^\[whatsapp:[^\]]+\]\s*/, "") : ""),
+    latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
+    longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
+    locationName: location?.name || "",
+    locationAddress: location?.address || "",
+  };
 }
 
 function compactMetaRaw(raw) {
@@ -1752,6 +1793,7 @@ router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) =>
       const ph = normalizeConversationPhone(g._id);
       const lead = leadByPhone.get(ph) || null;
       const last = g.last || {};
+      const lastMediaMeta = extractConversationMediaMeta(last);
       const leadTags = Array.isArray(lead?.tags) ? lead.tags : [];
       const out = {
         id: String(g.lastMessageId || last._id || ""),
@@ -1772,6 +1814,14 @@ router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) =>
         hasFailed: !!g.hasFailed,
         hasMedia: !!g.hasMedia,
         messageType: inferConversationMessageType(last),
+        mediaId: lastMediaMeta.mediaId,
+        mimeType: lastMediaMeta.mimeType,
+        filename: lastMediaMeta.filename || last.filename || "",
+        caption: lastMediaMeta.caption,
+        latitude: lastMediaMeta.latitude,
+        longitude: lastMediaMeta.longitude,
+        locationName: lastMediaMeta.locationName,
+        locationAddress: lastMediaMeta.locationAddress,
         templateName: last.templateName || "",
         friendlyTemplateName: last.templateName ? getFriendlyTemplateName(last.templateName) : "",
         origin: last.origin || lead?.origin || "WhatsApp",
@@ -1860,7 +1910,9 @@ router.get("/chatbot-admin/conversations/:phone/messages", requireAdminAuth, asy
       WaMessage.find(messageQuery).sort({ createdAt: 1, _id: 1 }).limit(500).lean(),
       Lead.findOne({ tenant, phone }).lean(),
     ]);
-    const mapped = messages.map((m) => ({
+    const mapped = messages.map((m) => {
+      const mediaMeta = extractConversationMediaMeta(m);
+      return {
       id: String(m._id),
       direction: m.direction || "",
       from: m.from || "",
@@ -1868,6 +1920,14 @@ router.get("/chatbot-admin/conversations/:phone/messages", requireAdminAuth, asy
       text: m.text || "",
       messageType: inferConversationMessageType(m),
       mediaUrl: m.mediaUrl || (/^https?:\/\//i.test(String(m.text || "")) ? String(m.text || "") : ""),
+      mediaId: mediaMeta.mediaId,
+      mimeType: mediaMeta.mimeType,
+      filename: mediaMeta.filename || m.filename || "",
+      caption: mediaMeta.caption,
+      latitude: mediaMeta.latitude,
+      longitude: mediaMeta.longitude,
+      locationName: mediaMeta.locationName,
+      locationAddress: mediaMeta.locationAddress,
       templateName: m.templateName || "",
       friendlyTemplateName: m.templateName ? getFriendlyTemplateName(m.templateName) : "",
       origin: m.origin || "WhatsApp",
@@ -1893,7 +1953,8 @@ router.get("/chatbot-admin/conversations/:phone/messages", requireAdminAuth, asy
       hiddenBy: m.hiddenBy || "",
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,
-    }));
+    };
+    });
     return res.json({ ok: true, phone, lead: conversationLeadPayload(lead), messages: mapped, tags: CONVERSATION_TAGS });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -1946,14 +2007,18 @@ function customerHistoryItem(input) {
 
 function customerHistoryMessageSummary(m) {
   if (m.templateName) return "Template Meta: " + getFriendlyTemplateName(m.templateName);
-  if (m.mediaUrl) return (m.filename || m.messageType || "Midia") + (m.text ? " - " + m.text : "");
+  const mediaMeta = extractConversationMediaMeta(m);
+  const type = inferConversationMessageType(m);
+  if (type === "location" && mediaMeta.latitude != null && mediaMeta.longitude != null) return "Localizacao compartilhada: " + mediaMeta.latitude + ", " + mediaMeta.longitude;
+  if (m.mediaUrl || ["image", "audio", "video", "document", "location"].includes(type)) return (mediaMeta.filename || m.filename || type || "Midia") + (mediaMeta.caption || m.text ? " - " + (mediaMeta.caption || m.text) : "");
   if (m.messageType === "system" || m.direction === "system") return m.text || m.auditAction || "Evento operacional";
   return m.text || m.intent || m.messageType || "Mensagem WhatsApp";
 }
 
 function customerHistoryMessageType(m) {
-  if (m.templateName || m.messageType === "template") return "template";
-  if (m.mediaUrl || ["image", "audio", "video", "document", "location", "sticker"].includes(String(m.messageType || "").toLowerCase())) return "media";
+  const type = inferConversationMessageType(m);
+  if (m.templateName || type === "template") return "template";
+  if (m.mediaUrl || ["image", "audio", "video", "document", "location", "sticker"].includes(type)) return "media";
   if (m.auditAction || m.direction === "system" || m.messageType === "system") return customerHistoryType(m.auditAction || m.raw?.event || "queue");
   return "message";
 }
@@ -1993,7 +2058,7 @@ router.get("/chatbot-admin/customers/:phone/history", requireAdminAuth, async (r
         by: m.operatorName || m.operatorEmail || m.auditBy || (m.direction === "inbound" ? "Cliente" : "Sistema"),
         summary: customerHistoryMessageSummary(m),
         tone: m.metaError || status === "failed" ? "danger" : (m.direction === "inbound" ? "inbound" : "outbound"),
-        details: { direction: m.direction || "", status, from: m.from || "", to: m.to || "", messageType: m.messageType || "", origin: m.origin || "WhatsApp", templateName: m.templateName || "", mediaUrl: m.mediaUrl || "", filename: m.filename || "", wamid: m.wamid || "", waMessageId: m.waMessageId || "", auditAction: m.auditAction || "", replyToText: m.replyToText || "" },
+        details: Object.assign({ direction: m.direction || "", status, from: m.from || "", to: m.to || "", messageType: inferConversationMessageType(m), origin: m.origin || "WhatsApp", templateName: m.templateName || "", mediaUrl: m.mediaUrl || "", filename: m.filename || "", wamid: m.wamid || "", waMessageId: m.waMessageId || "", auditAction: m.auditAction || "", replyToText: m.replyToText || "" }, extractConversationMediaMeta(m)),
       });
     }
 

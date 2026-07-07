@@ -3621,3 +3621,28 @@ button:active {
   .crm-history-modal__box { width:96vw; max-height:88vh; }
   .crm-history-item__top span { white-space:normal; }
 }
+
+
+/* v2.1 midias e localizacao nas conversas */
+.crm-media-card { display:grid; gap:8px; margin:4px 0 7px; min-width:220px; max-width:320px; }
+.crm-media-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.crm-media-head strong { font-size:12px; color:#0f172a; }
+.crm-media-head span { border-radius:999px; padding:3px 7px; background:#f1f5f9; color:#475569; font-size:10px; font-weight:900; }
+.crm-media-card .crm-media-image { max-width:320px; width:100%; max-height:280px; object-fit:cover; border-radius:10px; border:1px solid #e5e7eb; display:block; }
+.crm-media-card audio, .crm-media-card video { width:100%; max-width:320px; border-radius:10px; }
+.crm-media-card p { margin:0; font-size:12px; line-height:1.35; color:#334155; white-space:pre-wrap; overflow-wrap:anywhere; }
+.crm-media-open { display:inline-flex; align-items:center; justify-content:center; width:max-content; max-width:100%; border:1px solid #bfdbfe; border-radius:999px; padding:6px 9px; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:900; text-decoration:none; }
+.crm-media-unavailable { display:grid; gap:4px; border:1px dashed #cbd5e1; border-radius:12px; padding:10px; background:#f8fafc; color:#475569; }
+.crm-media-unavailable b { color:#0f172a; font-size:12px; overflow-wrap:anywhere; }
+.crm-media-unavailable span { font-size:11px; line-height:1.35; }
+.crm-location-card.crm-media-card { border:1px solid #bbf7d0; border-radius:12px; padding:10px; background:#f0fdf4; color:#14532d; }
+.crm-location-card.crm-media-card strong { color:#166534; font-size:13px; }
+.crm-location-card.crm-media-card span { color:#166534; font-size:12px; overflow-wrap:anywhere; }
+.crm-doc-card { max-width:100%; }
+.crm-doc-card span { overflow-wrap:anywhere; }
+.crm-history-item__actions { display:flex; flex-wrap:wrap; gap:7px; }
+@media (max-width:768px) {
+  .crm-media-card { min-width:0; max-width:100%; }
+  .crm-media-card .crm-media-image, .crm-media-card audio, .crm-media-card video { max-width:100%; }
+  .crm-media-open { width:100%; }
+}

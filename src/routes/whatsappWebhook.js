@@ -480,12 +480,15 @@ router.post("/webhook/whatsapp", async (req, res) => {
     const waMessageId = msg.id;
     const from = msg.from;
     const isImage = msg.type === "image";
+    const isAudio = msg.type === "audio" || msg.type === "voice";
+    const isVideo = msg.type === "video";
     const isDocument = msg.type === "document";
     const messageType = msg.type || "text";
-    const mediaId = (isImage && msg.image?.id) || (isDocument && msg.document?.id) || "";
-    const mediaMimeType = (isImage && msg.image?.mime_type) || (isDocument && msg.document?.mime_type) || "";
-    const mediaFilename = isDocument ? msg.document?.filename || "" : "";
-    const mediaCaption = (isImage && msg.image?.caption) || (isDocument && msg.document?.caption) || "";
+    const inboundMedia = msg[messageType] || {};
+    const mediaId = (isImage || isAudio || isVideo || isDocument) ? inboundMedia.id || "" : "";
+    const mediaMimeType = (isImage || isAudio || isVideo || isDocument) ? inboundMedia.mime_type || "" : "";
+    const mediaFilename = isDocument ? inboundMedia.filename || "" : "";
+    const mediaCaption = (isImage || isVideo || isDocument) ? inboundMedia.caption || "" : "";
 
     const text = msg.text?.body || "";
     const location = msg.location || null;
@@ -494,7 +497,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
 
     const inboundSummaryText = isLocation
       ? `LOCATION:${location?.latitude},${location?.longitude}`
-      : isImage || isDocument
+      : isImage || isAudio || isVideo || isDocument
         ? `[whatsapp:${messageType}:${mediaId || "unknown"}]` +
           (String(mediaCaption || "").trim() ? ` ${String(mediaCaption).trim().slice(0, 200)}` : "")
         : text;
@@ -542,6 +545,8 @@ router.post("/webhook/whatsapp", async (req, res) => {
         from,
         to: toPhoneId,
         text: inboundSummaryText,
+        messageType,
+        filename: mediaFilename,
         raw: req.body,
       });
     } catch (e) {
@@ -570,6 +575,8 @@ router.post("/webhook/whatsapp", async (req, res) => {
       messageType === "text" &&
       !isLocation &&
       !isImage &&
+      !isAudio &&
+      !isVideo &&
       !isDocument &&
       !isIntencaoOperacionalPorTextoAtual(text) &&
       (Boolean(detectarPlanoPanfleto(text)) || isCommercialIntentMessage(text));
