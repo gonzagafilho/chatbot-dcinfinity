@@ -3553,3 +3553,16 @@ button:active {
 .crm-ai-grid span, .crm-ai-operational p span, .crm-ai-next span { font-size:12px; line-height:1.35; color:#0f172a; }
 .crm-ai-operational small { color:#475569; }
 @media (max-width: 768px) { .crm-ai-grid { grid-template-columns:1fr; } }
+
+
+/* v2.1 CRM comercial */
+.crm-mini-badge.pipeline { background:#fef3c7;color:#92400e;border-color:#fde68a; }
+.crm-commercial-block { display:grid; gap:10px; margin:12px 0; padding:12px; border:1px solid #fde68a; border-radius:10px; background:#fffbeb; color:#0f172a; }
+.crm-commercial-block__head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.crm-commercial-block__head h3 { margin:0; font-size:14px; color:#92400e; }
+.crm-commercial-block label { display:grid; gap:5px; font-size:12px; font-weight:800; color:#78350f; }
+.crm-commercial-block input, .crm-commercial-block select { width:100%; border:1px solid #fcd34d; border-radius:8px; padding:8px 10px; background:#fff; color:#0f172a; }
+.crm-commercial-block button { border:0; border-radius:8px; padding:8px 10px; background:#92400e; color:#fff; font-weight:800; cursor:pointer; }
+.crm-commercial-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.crm-commercial-actions button:last-child { background:#991b1b; }
+.crm-commercial-block small { color:#78350f; font-weight:700; }

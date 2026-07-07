@@ -48,6 +48,7 @@ const router = express.Router();
 const QUEUE_STATUSES = new Set(["waiting", "assigned", "resolved", "paused"]);
 const CONVERSATION_PRIORITIES = new Set(["low", "normal", "high", "urgent"]);
 const CONVERSATION_DEPARTMENTS = new Set(["comercial", "financeiro", "suporte", "instalacao", "noc"]);
+const COMMERCIAL_PIPELINE_STAGES = new Set(["novo", "qualificado", "proposta", "aguardando_instalacao", "ganho", "perdido"]);
 
 let seasonalCampaignRunning = false;
 
@@ -1548,6 +1549,17 @@ function normalizedDepartment(value) {
   return CONVERSATION_DEPARTMENTS.has(d) ? d : "comercial";
 }
 
+function normalizedPipelineStage(value) {
+  const stage = String(value || "novo").toLowerCase();
+  return COMMERCIAL_PIPELINE_STAGES.has(stage) ? stage : "novo";
+}
+
+function parseOptionalDate(value) {
+  if (value == null || value === "") return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function conversationLeadPayload(lead) {
   if (!lead) return null;
   return {
@@ -1594,6 +1606,13 @@ function conversationLeadPayload(lead) {
     aiSuggestedReply: lead.aiSuggestedReply || "",
     aiNextSteps: Array.isArray(lead.aiNextSteps) ? lead.aiNextSteps : [],
     aiAnalyzedAt: lead.aiAnalyzedAt || null,
+    pipelineStage: normalizedPipelineStage(lead.pipelineStage),
+    dealValue: Number(lead.dealValue || 0),
+    nextFollowUpAt: lead.nextFollowUpAt || null,
+    followUpNote: lead.followUpNote || "",
+    lostReason: lead.lostReason || "",
+    wonAt: lead.wonAt || null,
+    lostAt: lead.lostAt || null,
     resolvedAt: lead.resolvedAt || null,
     coverageStatus: lead.coverageStatus || "",
     coverageAreaName: lead.coverageAreaName || "",
@@ -1748,6 +1767,11 @@ router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) =>
         queueStatus: normalizedQueueStatus(lead),
         priority: normalizedPriority(lead?.priority),
         department: normalizedDepartment(lead?.department),
+        pipelineStage: normalizedPipelineStage(lead?.pipelineStage),
+        dealValue: Number(lead?.dealValue || 0),
+        nextFollowUpAt: lead?.nextFollowUpAt || null,
+        followUpNote: lead?.followUpNote || "",
+        lostReason: lead?.lostReason || "",
         typingUntil: lead?.typingUntil || null,
         tags: leadTags,
         metaError: last.metaError || null,
@@ -2202,6 +2226,74 @@ router.patch("/chatbot-admin/conversations/:phone/department", requireAdminAuth,
   }
 });
 
+router.patch("/chatbot-admin/conversations/:phone/crm/stage", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    const stage = normalizedPipelineStage(req.body?.pipelineStage || req.body?.stage);
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { pipelineStage: stage }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" }, $push: { timelineEvents: { type: "crm_stage", label: "Etapa comercial alterada para " + stage, by, at: new Date() } } }, { upsert: true, new: true }).lean();
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.patch("/chatbot-admin/conversations/:phone/crm/value", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    const dealValue = Math.max(0, Number(req.body?.dealValue || 0) || 0);
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { dealValue }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" }, $push: { timelineEvents: { type: "crm_value", label: "Valor da oportunidade atualizado", by, at: new Date(), dealValue } } }, { upsert: true, new: true }).lean();
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.patch("/chatbot-admin/conversations/:phone/crm/follow-up", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    const nextFollowUpAt = parseOptionalDate(req.body?.nextFollowUpAt);
+    const followUpNote = String(req.body?.followUpNote || "").slice(0, 2000);
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { nextFollowUpAt, followUpNote }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" }, $push: { timelineEvents: { type: "crm_follow_up", label: "Follow-up comercial atualizado", by, at: new Date(), nextFollowUpAt } } }, { upsert: true, new: true }).lean();
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.post("/chatbot-admin/conversations/:phone/crm/won", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    const dealValue = req.body?.dealValue != null ? Math.max(0, Number(req.body.dealValue) || 0) : undefined;
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const set = { pipelineStage: "ganho", lostReason: "", wonAt: new Date(), lostAt: null };
+    if (dealValue !== undefined) set.dealValue = dealValue;
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: set, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" }, $push: { timelineEvents: { type: "crm_won", label: "Oportunidade marcada como ganha", by, at: new Date(), dealValue } } }, { upsert: true, new: true }).lean();
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.post("/chatbot-admin/conversations/:phone/crm/lost", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    const lostReason = String(req.body?.lostReason || "").slice(0, 1000);
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { pipelineStage: "perdido", lostReason, lostAt: new Date(), wonAt: null }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" }, $push: { timelineEvents: { type: "crm_lost", label: "Oportunidade marcada como perdida", by, at: new Date(), lostReason } } }, { upsert: true, new: true }).lean();
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 router.patch("/chatbot-admin/conversations/:phone/lead", requireAdminAuth, async (req, res) => {
   try {
     const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
@@ -2224,6 +2316,11 @@ router.patch("/chatbot-admin/conversations/:phone/lead", requireAdminAuth, async
     if (req.body?.priority != null) set.priority = normalizedPriority(req.body.priority);
     if (req.body?.department != null) set.department = normalizedDepartment(req.body.department);
     if (req.body?.queueStatus != null && QUEUE_STATUSES.has(String(req.body.queueStatus).toLowerCase())) set.queueStatus = String(req.body.queueStatus).toLowerCase();
+    if (req.body?.pipelineStage != null) set.pipelineStage = normalizedPipelineStage(req.body.pipelineStage);
+    if (req.body?.dealValue != null) set.dealValue = Math.max(0, Number(req.body.dealValue || 0) || 0);
+    if (req.body?.nextFollowUpAt !== undefined) set.nextFollowUpAt = parseOptionalDate(req.body.nextFollowUpAt);
+    if (req.body?.followUpNote != null) set.followUpNote = String(req.body.followUpNote || "").slice(0, 2000);
+    if (req.body?.lostReason != null) set.lostReason = String(req.body.lostReason || "").slice(0, 1000);
     if (!Object.keys(set).length) return res.status(400).json({ ok: false, error: "empty_patch" });
     const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: set, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" } }, { upsert: true, new: true }).lean();
     return res.json({ ok: true, lead: conversationLeadPayload(lead), tags: CONVERSATION_TAGS });

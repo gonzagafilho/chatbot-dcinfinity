@@ -68,6 +68,13 @@ const LeadSchema = new mongoose.Schema(
     aiSuggestedReply: { type: String, default: "" },
     aiNextSteps: { type: [String], default: [] },
     aiAnalyzedAt: { type: Date, default: null },
+    pipelineStage: { type: String, enum: ["novo", "qualificado", "proposta", "aguardando_instalacao", "ganho", "perdido"], default: "novo", index: true },
+    dealValue: { type: Number, default: 0 },
+    nextFollowUpAt: { type: Date, default: null, index: true },
+    followUpNote: { type: String, default: "" },
+    lostReason: { type: String, default: "" },
+    wonAt: { type: Date, default: null },
+    lostAt: { type: Date, default: null },
     resolvedAt: { type: Date, default: null },
 
     /** Verificação de cobertura GPS (fluxo comercial / panfleto) */

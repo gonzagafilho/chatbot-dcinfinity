@@ -1443,6 +1443,30 @@ let conversationsPollTimer = null;
     return map[d] || d;
   }
 
+  function conversationPipelineStage(c) {
+    var stage = String(c && c.pipelineStage || "novo").toLowerCase();
+    var allowed = ["novo", "qualificado", "proposta", "aguardando_instalacao", "ganho", "perdido"];
+    return allowed.indexOf(stage) >= 0 ? stage : "novo";
+  }
+
+  function conversationPipelineLabel(stage) {
+    var map = { novo: "Novo", qualificado: "Qualificado", proposta: "Proposta", aguardando_instalacao: "Instalacao", ganho: "Ganho", perdido: "Perdido" };
+    return map[String(stage || "novo").toLowerCase()] || "Novo";
+  }
+
+  function formatDealValue(value) {
+    var n = Number(value || 0);
+    try { return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); } catch (e) { return "R$ " + n.toFixed(2); }
+  }
+
+  function toDatetimeLocal(value) {
+    if (!value) return "";
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return "";
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }
+
   function formatQueueWait(ms) {
     ms = Number(ms || 0);
     if (!ms || ms < 0) return "0 min";
@@ -1560,12 +1584,13 @@ let conversationsPollTimer = null;
     if (f === "urgent") return String(c.priority || "").toLowerCase() === "urgent";
     if (f === "unread") return Number(c.unreadCount || 0) > 0 || !!c.unreadManual;
     if (f === "failed") return !!c.hasFailed || String(c.status || "").toLowerCase() === "falhou";
+    if (f.indexOf("stage_") === 0) return conversationPipelineStage(c) === f.slice(6);
     if (f === "favorite" || f === "favoritas") return !!c.isFavorite || tags.indexOf("favorito") >= 0;
     return tags.indexOf(f) >= 0 || String(c.lastIntent || "").toLowerCase().indexOf(f) >= 0;
   }
 
   function renderConversationFilterCounts() {
-    var labels = { all: "Tudo", mine: "Minha fila", waiting: "Aguardando", assigned: "Em atendimento", resolved: "Resolvidos", urgent: "Urgentes", unread: "Não lidas", failed: "Falhas", favorite: "Favoritas", Comercial: "Comercial", Financeiro: "Financeiro", Suporte: "Suporte" };
+    var labels = { all: "Tudo", mine: "Minha fila", waiting: "Aguardando", assigned: "Em atendimento", resolved: "Resolvidos", urgent: "Urgentes", unread: "Não lidas", failed: "Falhas", stage_novo: "Novo", stage_qualificado: "Qualificado", stage_proposta: "Proposta", stage_aguardando_instalacao: "Instalação", stage_ganho: "Ganho", stage_perdido: "Perdido", favorite: "Favoritas", Comercial: "Comercial", Financeiro: "Financeiro", Suporte: "Suporte" };
     Object.keys(labels).forEach(function (key) {
       var btn = document.querySelector('[data-conv-filter="' + key + '"]');
       if (!btn) return;
@@ -1612,6 +1637,7 @@ let conversationsPollTimer = null;
           '<span class="crm-mini-badge queue">' + convEsc(assigned) + '</span>' +
           '<span class="crm-mini-badge priority priority-' + convEsc(priority) + '">' + convEsc(conversationPriorityLabel(priority)) + '</span>' +
           '<span class="crm-mini-badge dept">' + convEsc(conversationDepartmentLabel(c.department)) + '</span>' +
+          '<span class="crm-mini-badge pipeline">' + convEsc(conversationPipelineLabel(c.pipelineStage)) + '</span>' +
           (tag ? '<span class="crm-mini-badge">' + convEsc(tag) + '</span>' : '') +
           (unread ? '<span class="crm-mini-badge unread">' + unread + '</span>' : '') +
           '</div>' +
@@ -1821,6 +1847,20 @@ let conversationsPollTimer = null;
     box.scrollTop = box.scrollHeight;
   }
 
+  function renderConversationCrmBlock(l) {
+    var stage = conversationPipelineStage(l);
+    return '<div class="crm-commercial-block">' +
+      '<div class="crm-commercial-block__head"><h3>CRM Comercial</h3><button type="button" id="btnConversationSaveCrm">Salvar CRM</button></div>' +
+      '<label>Etapa do funil<select id="conversationPipelineStage"><option value="novo" ' + (stage === 'novo' ? 'selected' : '') + '>Novo</option><option value="qualificado" ' + (stage === 'qualificado' ? 'selected' : '') + '>Qualificado</option><option value="proposta" ' + (stage === 'proposta' ? 'selected' : '') + '>Proposta</option><option value="aguardando_instalacao" ' + (stage === 'aguardando_instalacao' ? 'selected' : '') + '>Instalacao</option><option value="ganho" ' + (stage === 'ganho' ? 'selected' : '') + '>Ganho</option><option value="perdido" ' + (stage === 'perdido' ? 'selected' : '') + '>Perdido</option></select></label>' +
+      '<label>Valor da oportunidade<input id="conversationDealValue" type="number" min="0" step="0.01" value="' + convEsc(l.dealValue || 0) + '" /></label>' +
+      '<label>Proximo follow-up<input id="conversationNextFollowUpAt" type="datetime-local" value="' + convEsc(toDatetimeLocal(l.nextFollowUpAt)) + '" /></label>' +
+      '<label>Observacao<input id="conversationFollowUpNote" type="text" value="' + convEsc(l.followUpNote || '') + '" /></label>' +
+      '<label>Motivo de perda<input id="conversationLostReason" type="text" value="' + convEsc(l.lostReason || '') + '" /></label>' +
+      '<div class="crm-commercial-actions"><button type="button" id="btnConversationWon">Ganho</button><button type="button" id="btnConversationLost">Perdido</button></div>' +
+      '<small>Valor atual: ' + convEsc(formatDealValue(l.dealValue)) + '</small>' +
+    '</div>';
+  }
+
   function renderConversationAiBlock(l) {
     var nextSteps = Array.isArray(l.aiNextSteps) ? l.aiNextSteps : [];
     var analyzed = l.aiAnalyzedAt ? new Date(l.aiAnalyzedAt).toLocaleString("pt-BR") : "Ainda nao analisada";
@@ -1887,6 +1927,7 @@ let conversationsPollTimer = null;
       '<div><b>Última campanha</b><span>' + convEsc(l.lastCampaign || '-') + '</span></div>' +
       '<div><b>Templates enviados</b><span id="conversationTemplateCount">-</span></div>' +
       '</div>' +
+      renderConversationCrmBlock(l) +
       renderConversationAiBlock(l) +
       '<div class="crm-queue-controls">' +
         '<label>Prioridade<select id="conversationPrioritySelect"><option value="low" ' + (l.priority === 'low' ? 'selected' : '') + '>Baixa</option><option value="normal" ' + (!l.priority || l.priority === 'normal' ? 'selected' : '') + '>Normal</option><option value="high" ' + (l.priority === 'high' ? 'selected' : '') + '>Alta</option><option value="urgent" ' + (l.priority === 'urgent' ? 'selected' : '') + '>Urgente</option></select></label>' +
@@ -2025,6 +2066,40 @@ let conversationsPollTimer = null;
       loadConversations();
     } catch (e) {
       if (st) st.textContent = "Erro: " + (e.message || e);
+    }
+  }
+
+  async function saveConversationCrm(action) {
+    if (!conversationSelectedPhone) return alert("Selecione uma conversa.");
+    var st = qs("conversationLeadStatus");
+    var body = { tenant: convTenant() };
+    var endpoint = "/crm/stage";
+    var method = "PATCH";
+    if (action === "won") {
+      endpoint = "/crm/won";
+      method = "POST";
+      body.dealValue = (qs("conversationDealValue") && qs("conversationDealValue").value) || 0;
+    } else if (action === "lost") {
+      endpoint = "/crm/lost";
+      method = "POST";
+      body.lostReason = (qs("conversationLostReason") && qs("conversationLostReason").value) || "";
+    } else {
+      body.pipelineStage = (qs("conversationPipelineStage") && qs("conversationPipelineStage").value) || "novo";
+      body.dealValue = (qs("conversationDealValue") && qs("conversationDealValue").value) || 0;
+      body.nextFollowUpAt = (qs("conversationNextFollowUpAt") && qs("conversationNextFollowUpAt").value) || "";
+      body.followUpNote = (qs("conversationFollowUpNote") && qs("conversationFollowUpNote").value) || "";
+      body.lostReason = (qs("conversationLostReason") && qs("conversationLostReason").value) || "";
+      endpoint = "/lead";
+    }
+    if (st) st.textContent = "Salvando CRM...";
+    try {
+      var data = await api("/api/chatbot-admin/conversations/" + encodeURIComponent(conversationSelectedPhone) + endpoint, { method: method, body: body });
+      conversationSelectedLead = data.lead || null;
+      renderConversationLead(conversationSelectedLead, conversationSelectedPhone);
+      loadConversations();
+      if (st) st.textContent = action === "won" ? "Oportunidade marcada como ganha." : (action === "lost" ? "Oportunidade marcada como perdida." : "CRM comercial salvo.");
+    } catch (e) {
+      if (st) st.textContent = "Erro CRM: " + (e.message || e);
     }
   }
 
@@ -3208,6 +3283,14 @@ qs("btnSave").addEventListener("click", save);
       if (!btn) return;
       ev.preventDefault();
       analyzeConversationAi();
+    });
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("#btnConversationSaveCrm,#btnConversationWon,#btnConversationLost");
+      if (!btn) return;
+      ev.preventDefault();
+      if (btn.id === "btnConversationWon") return saveConversationCrm("won");
+      if (btn.id === "btnConversationLost") return saveConversationCrm("lost");
+      saveConversationCrm("save");
     });
 
     if (qs("btnConversationsRefresh")) qs("btnConversationsRefresh").addEventListener("click", loadConversations);

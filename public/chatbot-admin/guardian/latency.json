@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-07 11:50:01",
+  "updatedAt": "2026-07-07 11:56:01",
   "internet": {
     "name": "Internet",
     "ok": true,
@@ -13,7 +13,7 @@
   "chatbotHttps": {
     "name": "Chatbot HTTPS",
     "ok": true,
-    "ms": 53.5
+    "ms": 198.9
   },
   "localApi": {
     "name": "API Local",

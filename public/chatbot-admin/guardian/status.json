@@ -1,15 +1,15 @@
 {
   "ok": true,
   "enabled": false,
-  "updatedAt": "2026-07-07 11:50:01",
+  "updatedAt": "2026-07-07 11:56:01",
   "host": "servidor-dcnet",
   "metrics": {
-    "cpu": 16,
+    "cpu": 14,
     "ram": 20,
     "disk": 31,
-    "load1": 1.72,
-    "load5": 1.71,
-    "load15": 1.67
+    "load1": 1.77,
+    "load5": 1.74,
+    "load15": 1.69
   },
   "message": "Guardian realtime operacional"
 }
