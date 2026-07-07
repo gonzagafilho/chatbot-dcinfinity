@@ -1449,6 +1449,31 @@ let conversationsPollTimer = null;
     return allowed.indexOf(stage) >= 0 ? stage : "novo";
   }
 
+  function conversationNocDiagnostic(c) {
+    var d = c && c.nocDiagnostic || {};
+    var status = String(d.status || c && c.connectionStatus || "").toLowerCase();
+    var cause = String(d.possibleCause || c && c.nocPossibleCause || "");
+    var hay = [status, cause, String(c && c.lastIntent || "")].join(" ").toLowerCase();
+    return {
+      status: status || "online",
+      offline: !!d.offline || /offline|sem conex|sem internet|desconect|down/.test(hay),
+      oscillating: !!d.oscillating || /oscil|lent|instabil|intermit|quedas|cai/.test(hay),
+      maintenance: !!d.maintenance || !!(c && c.affectedByMaintenance) || /manuten|massiva/.test(hay),
+      possibleRupture: !!d.possibleRupture || /romp|rupt|fibra|pon|cto/.test(hay),
+      region: d.region || c && (c.networkRegion || c.coverageAreaName || c.neighborhood || c.city) || "-",
+      lastDropAt: d.lastDropAt || c && c.lastConnectionDropAt || null,
+      possibleCause: cause || "Sem alerta operacional ativo",
+    };
+  }
+
+  function conversationNocStatusLabel(status) {
+    var s = String(status || "online").toLowerCase();
+    if (s === "offline") return "Offline";
+    if (s === "oscilando") return "Oscilando";
+    if (s === "manutencao") return "Manutenção";
+    return "Online";
+  }
+
   function conversationPipelineLabel(stage) {
     var map = { novo: "Novo", qualificado: "Qualificado", proposta: "Proposta", aguardando_instalacao: "Instalacao", ganho: "Ganho", perdido: "Perdido" };
     return map[String(stage || "novo").toLowerCase()] || "Novo";
@@ -1585,12 +1610,19 @@ let conversationsPollTimer = null;
     if (f === "unread") return Number(c.unreadCount || 0) > 0 || !!c.unreadManual;
     if (f === "failed") return !!c.hasFailed || String(c.status || "").toLowerCase() === "falhou";
     if (f.indexOf("stage_") === 0) return conversationPipelineStage(c) === f.slice(6);
+    if (f.indexOf("noc_") === 0) {
+      var noc = conversationNocDiagnostic(c);
+      if (f === "noc_offline") return noc.offline;
+      if (f === "noc_oscilando") return noc.oscillating;
+      if (f === "noc_manutencao") return noc.maintenance;
+      if (f === "noc_rompimento") return noc.possibleRupture;
+    }
     if (f === "favorite" || f === "favoritas") return !!c.isFavorite || tags.indexOf("favorito") >= 0;
     return tags.indexOf(f) >= 0 || String(c.lastIntent || "").toLowerCase().indexOf(f) >= 0;
   }
 
   function renderConversationFilterCounts() {
-    var labels = { all: "Tudo", mine: "Minha fila", waiting: "Aguardando", assigned: "Em atendimento", resolved: "Resolvidos", urgent: "Urgentes", unread: "Não lidas", failed: "Falhas", stage_novo: "Novo", stage_qualificado: "Qualificado", stage_proposta: "Proposta", stage_aguardando_instalacao: "Instalação", stage_ganho: "Ganho", stage_perdido: "Perdido", favorite: "Favoritas", Comercial: "Comercial", Financeiro: "Financeiro", Suporte: "Suporte" };
+    var labels = { all: "Tudo", mine: "Minha fila", waiting: "Aguardando", assigned: "Em atendimento", resolved: "Resolvidos", urgent: "Urgentes", unread: "Não lidas", failed: "Falhas", stage_novo: "Novo", stage_qualificado: "Qualificado", stage_proposta: "Proposta", stage_aguardando_instalacao: "Instalação", stage_ganho: "Ganho", stage_perdido: "Perdido", noc_offline: "Offline", noc_oscilando: "Oscilando", noc_manutencao: "Manutenção", noc_rompimento: "Possível rompimento", favorite: "Favoritas", Comercial: "Comercial", Financeiro: "Financeiro", Suporte: "Suporte" };
     Object.keys(labels).forEach(function (key) {
       var btn = document.querySelector('[data-conv-filter="' + key + '"]');
       if (!btn) return;
@@ -1626,7 +1658,8 @@ let conversationsPollTimer = null;
       var priority = String(c.priority || "normal").toLowerCase();
       var assigned = c.assignedToName || c.assignedToEmail || "Fila";
       var queueStatus = conversationQueueStatus(c);
-      return '<div class="crm-chat-row priority-' + convEsc(priority) + ' queue-' + convEsc(queueStatus) + ' ' + (active ? 'is-active' : '') + (conversationNewPhones.has(String(c.phone)) ? ' is-new' : '') + '" data-conv-card="' + convEsc(c.phone) + '" data-conv-menu-phone="' + convEsc(c.phone) + '">' +
+      var noc = conversationNocDiagnostic(c);
+      return '<div class="crm-chat-row priority-' + convEsc(priority) + ' queue-' + convEsc(queueStatus) + ' noc-' + convEsc(noc.status) + ' ' + (active ? 'is-active' : '') + (conversationNewPhones.has(String(c.phone)) ? ' is-new' : '') + '" data-conv-card="' + convEsc(c.phone) + '" data-conv-menu-phone="' + convEsc(c.phone) + '">' +
         convAvatarHtml(title, c, "crm-avatar") +
         '<button type="button" data-conv-phone="' + convEsc(c.phone) + '" class="crm-chat-main" style="border:none;background:transparent;text-align:left;padding:0;cursor:pointer">' +
           '<div class="crm-chat-top"><span class="crm-chat-name">' + (favorite ? '<span class="crm-star">★</span> ' : '') + convEsc(title) + '</span><span class="crm-chat-time">' + convEsc(convShortTime(c.lastMessageAt)) + '</span></div>' +
@@ -1638,6 +1671,7 @@ let conversationsPollTimer = null;
           '<span class="crm-mini-badge priority priority-' + convEsc(priority) + '">' + convEsc(conversationPriorityLabel(priority)) + '</span>' +
           '<span class="crm-mini-badge dept">' + convEsc(conversationDepartmentLabel(c.department)) + '</span>' +
           '<span class="crm-mini-badge pipeline">' + convEsc(conversationPipelineLabel(c.pipelineStage)) + '</span>' +
+          '<span class="crm-mini-badge noc">' + convEsc(conversationNocStatusLabel(noc.status)) + '</span>' +
           (tag ? '<span class="crm-mini-badge">' + convEsc(tag) + '</span>' : '') +
           (unread ? '<span class="crm-mini-badge unread">' + unread + '</span>' : '') +
           '</div>' +
@@ -1847,6 +1881,27 @@ let conversationsPollTimer = null;
     box.scrollTop = box.scrollHeight;
   }
 
+  function renderConversationNocBlock(l) {
+    var noc = conversationNocDiagnostic(l);
+    var lastDrop = noc.lastDropAt ? new Date(noc.lastDropAt).toLocaleString("pt-BR") : "-";
+    return '<div class="crm-noc-block">' +
+      '<div class="crm-noc-block__head"><h3>NOC / Rede</h3><button type="button" id="btnConversationNocDiagnostic">Ver diagnóstico</button></div>' +
+      '<div class="crm-noc-grid">' +
+        '<div><b>Status</b><span>' + convEsc(conversationNocStatusLabel(noc.status)) + '</span></div>' +
+        '<div><b>Ultima queda</b><span>' + convEsc(lastDrop) + '</span></div>' +
+        '<div><b>Regiao/Bairro</b><span>' + convEsc(noc.region || l.neighborhood || l.city || '-') + '</span></div>' +
+        '<div><b>Possivel causa</b><span>' + convEsc(noc.possibleCause || '-') + '</span></div>' +
+      '</div>' +
+      '<div class="crm-noc-flags">' +
+        (noc.offline ? '<span>Offline</span>' : '') +
+        (noc.oscillating ? '<span>Oscilando</span>' : '') +
+        (noc.maintenance ? '<span>Manutencao</span>' : '') +
+        (noc.possibleRupture ? '<span>Possivel rompimento</span>' : '') +
+      '</div>' +
+      '<small id="conversationNocStatus">Diagnostico baseado em dados BeesWeb/Lead sincronizados.</small>' +
+    '</div>';
+  }
+
   function renderConversationCrmBlock(l) {
     var stage = conversationPipelineStage(l);
     return '<div class="crm-commercial-block">' +
@@ -1927,6 +1982,7 @@ let conversationsPollTimer = null;
       '<div><b>Última campanha</b><span>' + convEsc(l.lastCampaign || '-') + '</span></div>' +
       '<div><b>Templates enviados</b><span id="conversationTemplateCount">-</span></div>' +
       '</div>' +
+      renderConversationNocBlock(l) +
       renderConversationCrmBlock(l) +
       renderConversationAiBlock(l) +
       '<div class="crm-queue-controls">' +
@@ -2066,6 +2122,22 @@ let conversationsPollTimer = null;
       loadConversations();
     } catch (e) {
       if (st) st.textContent = "Erro: " + (e.message || e);
+    }
+  }
+
+  async function diagnoseConversationNoc() {
+    if (!conversationSelectedPhone) return alert("Selecione uma conversa.");
+    var st = qs("conversationNocStatus") || qs("conversationLeadStatus");
+    if (st) st.textContent = "Consultando diagnóstico NOC...";
+    try {
+      var data = await api("/api/chatbot-admin/noc/dashboard?tenant=" + encodeURIComponent(convTenant()) + "&phone=" + encodeURIComponent(conversationSelectedPhone));
+      if (data.customerDiagnostic) {
+        conversationSelectedLead = Object.assign({}, conversationSelectedLead || {}, { nocDiagnostic: data.customerDiagnostic });
+        renderConversationLead(conversationSelectedLead, conversationSelectedPhone);
+      }
+      if (st) st.textContent = "Diagnóstico NOC atualizado.";
+    } catch (e) {
+      if (st) st.textContent = "Erro NOC: " + (e.message || e);
     }
   }
 
@@ -3291,6 +3363,12 @@ qs("btnSave").addEventListener("click", save);
       if (btn.id === "btnConversationWon") return saveConversationCrm("won");
       if (btn.id === "btnConversationLost") return saveConversationCrm("lost");
       saveConversationCrm("save");
+    });
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("#btnConversationNocDiagnostic");
+      if (!btn) return;
+      ev.preventDefault();
+      diagnoseConversationNoc();
     });
 
     if (qs("btnConversationsRefresh")) qs("btnConversationsRefresh").addEventListener("click", loadConversations);

@@ -137,6 +137,86 @@ function logDcnetRoute(ctx, detectedIntent, nextStep, extra = {}) {
   console.log("[dcnet_route]", { phone, detectedIntent, identifiedCustomer, nextStep, ...extra });
 }
 
+function nocText(value) {
+  return String(value == null ? "" : value).trim();
+}
+
+function nocRegionOfLead(lead) {
+  return nocText(lead.networkRegion || lead.coverageAreaName || lead.neighborhood || lead.city || "Sem regiao");
+}
+
+function diagnoseLeadNetwork(lead) {
+  const status = nocText(lead && lead.connectionStatus).toLowerCase();
+  const intent = nocText(lead && lead.lastIntent).toLowerCase();
+  const tags = Array.isArray(lead && lead.tags) ? lead.tags.join(" ").toLowerCase() : "";
+  const hay = [status, intent, tags, nocText(lead && lead.nocPossibleCause).toLowerCase()].join(" ");
+  const offline = /offline|sem conex|sem internet|desconect|down|bloqueio tecnico|sinal perdido/.test(hay);
+  const oscillating = /oscil|lent|instabil|intermit|quedas|cai|perda de pacote/.test(hay);
+  const maintenance = !!(lead && lead.affectedByMaintenance) || /manuten|massiva|janela tecnica/.test(hay);
+  const possibleRupture = /romp|rupt|fibra rompida|cto|backbone|pon/.test(hay) || ((offline || oscillating) && /bairro|regiao|massiva/.test(hay));
+  const region = nocRegionOfLead(lead || {});
+  let cause = nocText(lead && lead.nocPossibleCause);
+  if (!cause) {
+    if (maintenance) cause = "Manutencao ou janela tecnica em andamento";
+    else if (possibleRupture) cause = "Possivel rompimento ou falha regional";
+    else if (offline) cause = "Cliente offline ou sem comunicacao";
+    else if (oscillating) cause = "Oscilacao ou instabilidade reportada";
+    else cause = "Sem alerta operacional ativo";
+  }
+  return {
+    status: offline ? "offline" : (oscillating ? "oscilando" : (maintenance ? "manutencao" : "online")),
+    offline,
+    oscillating,
+    maintenance,
+    possibleRupture,
+    region,
+    neighborhood: nocText((lead && lead.neighborhood) || ""),
+    lastDropAt: (lead && (lead.lastConnectionDropAt || lead.updatedAt || lead.lastAttendanceAt)) || null,
+    possibleCause: cause,
+  };
+}
+
+function buildNocDashboardFromLeads(leads) {
+  const rows = (Array.isArray(leads) ? leads : []).map((lead) => ({ lead, diagnostic: diagnoseLeadNetwork(lead) }));
+  const offline = rows.filter((r) => r.diagnostic.offline);
+  const oscillating = rows.filter((r) => r.diagnostic.oscillating);
+  const maintenance = rows.filter((r) => r.diagnostic.maintenance);
+  const byRegion = new Map();
+  rows.forEach((row) => {
+    if (!row.diagnostic.offline && !row.diagnostic.oscillating && !row.diagnostic.possibleRupture) return;
+    const key = row.diagnostic.region || "Sem regiao";
+    if (!byRegion.has(key)) byRegion.set(key, { region: key, offline: 0, oscillating: 0, affected: 0, phones: [] });
+    const item = byRegion.get(key);
+    item.offline += row.diagnostic.offline ? 1 : 0;
+    item.oscillating += row.diagnostic.oscillating ? 1 : 0;
+    item.affected += 1;
+    if (row.lead && row.lead.phone) item.phones.push(row.lead.phone);
+  });
+  const possibleRuptures = Array.from(byRegion.values())
+    .filter((r) => r.offline >= 2 || r.affected >= 3)
+    .sort((a, b) => b.affected - a.affected)
+    .slice(0, 12);
+  const latestDrops = rows
+    .filter((r) => r.diagnostic.offline || r.diagnostic.oscillating || r.diagnostic.possibleRupture)
+    .sort((a, b) => new Date(b.diagnostic.lastDropAt || 0) - new Date(a.diagnostic.lastDropAt || 0))
+    .slice(0, 20)
+    .map((r) => ({ phone: r.lead.phone || "", name: r.lead.name || r.lead.whatsappProfileName || "", status: r.diagnostic.status, region: r.diagnostic.region, lastDropAt: r.diagnostic.lastDropAt, possibleCause: r.diagnostic.possibleCause }));
+  const alerts = [];
+  if (possibleRuptures.length) alerts.push("Possivel rompimento regional detectado em " + possibleRuptures[0].region + ".");
+  if (offline.length) alerts.push(String(offline.length) + " cliente(s) offline na base monitorada.");
+  if (oscillating.length) alerts.push(String(oscillating.length) + " cliente(s) com oscilacao ou instabilidade.");
+  if (maintenance.length) alerts.push(String(maintenance.length) + " cliente(s) afetado(s) por manutencao.");
+  if (!alerts.length) alerts.push("Sem alertas NOC criticos no momento.");
+  return {
+    offlineCustomers: offline.length,
+    oscillatingCustomers: oscillating.length,
+    possibleRuptures,
+    latestDrops,
+    maintenanceAffectedCustomers: maintenance.length,
+    operationalAlerts: alerts,
+  };
+}
+
 function identificationRequiredReply(ctx, adminNotifyMessage, meta = {}) {
   const detectedIntent = meta.detectedIntent != null ? meta.detectedIntent : "operacional";
   logDcnetRoute(ctx, detectedIntent, "pedir_cpf", { branch: meta.branch || "identification_required" });
@@ -772,6 +852,8 @@ module.exports = {
   hasDcnetBeeswebCustomerIdentification,
   logDcnetRoute,
   buildDcnetFinanceSoftLockReleaseLeadPatch,
+  diagnoseLeadNetwork,
+  buildNocDashboardFromLeads,
   pendenciaLeadPatch,
   MENSAGEM_PENDENCIA,
   MENSAGEM_PIX,

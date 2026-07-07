@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-07-07 11:56:01",
+  "updatedAt": "2026-07-07 12:03:01",
   "internet": {
     "name": "Internet",
     "ok": true,
-    "ms": 16.7
+    "ms": 16.9
   },
   "googleDns": {
     "name": "DNS Google",
@@ -13,11 +13,11 @@
   "chatbotHttps": {
     "name": "Chatbot HTTPS",
     "ok": true,
-    "ms": 198.9
+    "ms": 69.9
   },
   "localApi": {
     "name": "API Local",
     "ok": true,
-    "ms": 2.1
+    "ms": 2.8
   }
 }

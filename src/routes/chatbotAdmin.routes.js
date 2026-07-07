@@ -38,6 +38,7 @@ const {
 } = require("../services/metaTemplateService");
 
 const dcnetOperationalAi = require("../services/ai/dcnetOperationalAiService");
+const { diagnoseLeadNetwork, buildNocDashboardFromLeads } = require("../services/dcnetOperationalBeesweb");
 
 const {
   runSeasonalCampaigns,
@@ -1583,6 +1584,11 @@ function conversationLeadPayload(lead) {
     lastInvoice: lead.lastInvoice || "",
     financialStatus: lead.financialStatus || "",
     connectionStatus: lead.connectionStatus || "",
+    lastConnectionDropAt: lead.lastConnectionDropAt || null,
+    networkRegion: lead.networkRegion || lead.coverageAreaName || lead.neighborhood || lead.city || "",
+    nocPossibleCause: lead.nocPossibleCause || "",
+    affectedByMaintenance: !!lead.affectedByMaintenance,
+    nocDiagnostic: diagnoseLeadNetwork(lead),
     customerSince: lead.customerSince || null,
     lastAttendanceAt: lead.lastAttendanceAt || lead.assignedAt || lead.resolvedAt || null,
     protocol: lead.protocol || "",
@@ -1699,6 +1705,19 @@ router.get("/chatbot-admin/queue/dashboard", requireAdminAuth, async (req, res) 
   }
 });
 
+router.get("/chatbot-admin/noc/dashboard", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.query.tenant);
+    const phone = normalizeConversationPhone(req.query.phone || "");
+    const leads = await Lead.find({ tenant, $or: [{ channel: "whatsapp" }, { origin: "whatsapp" }] }).sort({ updatedAt: -1 }).limit(1000).lean();
+    const dashboard = buildNocDashboardFromLeads(leads);
+    const selectedLead = phone ? leads.find((l) => normalizeConversationPhone(l.phone) === phone) : null;
+    return res.json({ ok: true, generatedAt: new Date().toISOString(), dashboard, customerDiagnostic: selectedLead ? diagnoseLeadNetwork(selectedLead) : null });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) => {
   try {
     const tenant = normalizeTenantParam(req.query.tenant);
@@ -1759,6 +1778,12 @@ router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) =>
         cpf: lead?.cpf || "",
         city: lead?.city || "",
         neighborhood: lead?.neighborhood || "",
+        connectionStatus: lead?.connectionStatus || "",
+        lastConnectionDropAt: lead?.lastConnectionDropAt || null,
+        networkRegion: lead?.networkRegion || lead?.coverageAreaName || lead?.neighborhood || lead?.city || "",
+        nocPossibleCause: lead?.nocPossibleCause || "",
+        affectedByMaintenance: !!lead?.affectedByMaintenance,
+        nocDiagnostic: diagnoseLeadNetwork(lead || {}),
         protocol: lead?.protocol || "",
         assignedTo: lead?.assignedTo || "",
         assignedToName: lead?.assignedToName || lead?.assignedToEmail || "",
@@ -2311,6 +2336,10 @@ router.patch("/chatbot-admin/conversations/:phone/lead", requireAdminAuth, async
     if (req.body?.lastInvoice != null) set.lastInvoice = String(req.body.lastInvoice || "").slice(0, 120);
     if (req.body?.financialStatus != null) set.financialStatus = String(req.body.financialStatus || "").slice(0, 80);
     if (req.body?.connectionStatus != null) set.connectionStatus = String(req.body.connectionStatus || "").slice(0, 80);
+    if (req.body?.lastConnectionDropAt !== undefined) set.lastConnectionDropAt = parseOptionalDate(req.body.lastConnectionDropAt);
+    if (req.body?.networkRegion != null) set.networkRegion = String(req.body.networkRegion || "").slice(0, 120);
+    if (req.body?.nocPossibleCause != null) set.nocPossibleCause = String(req.body.nocPossibleCause || "").slice(0, 300);
+    if (req.body?.affectedByMaintenance != null) set.affectedByMaintenance = !!req.body.affectedByMaintenance;
     if (req.body?.protocol != null) set.protocol = String(req.body.protocol || "").slice(0, 80);
     if (req.body?.unreadManual != null) set.unreadManual = !!req.body.unreadManual;
     if (req.body?.priority != null) set.priority = normalizedPriority(req.body.priority);

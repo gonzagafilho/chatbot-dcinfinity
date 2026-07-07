@@ -3566,3 +3566,22 @@ button:active {
 .crm-commercial-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .crm-commercial-actions button:last-child { background:#991b1b; }
 .crm-commercial-block small { color:#78350f; font-weight:700; }
+
+
+/* v2.1 NOC BeesWeb */
+.crm-mini-badge.noc { background:#e0f2fe;color:#075985;border-color:#bae6fd; }
+.crm-chat-row.noc-offline { border-left:4px solid #dc2626; }
+.crm-chat-row.noc-oscilando { border-left:4px solid #f59e0b; }
+.crm-chat-row.noc-manutencao { border-left:4px solid #2563eb; }
+.crm-noc-block { display:grid; gap:10px; margin:12px 0; padding:12px; border:1px solid #bae6fd; border-radius:10px; background:#f0f9ff; color:#0f172a; }
+.crm-noc-block__head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.crm-noc-block__head h3 { margin:0; font-size:14px; color:#075985; }
+.crm-noc-block__head button { border:0; border-radius:8px; padding:8px 10px; background:#0369a1; color:#fff; font-weight:800; cursor:pointer; }
+.crm-noc-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.crm-noc-grid div { display:grid; gap:4px; }
+.crm-noc-grid b { font-size:11px; text-transform:uppercase; color:#075985; }
+.crm-noc-grid span { font-size:12px; line-height:1.35; color:#0f172a; overflow-wrap:anywhere; }
+.crm-noc-flags { display:flex; flex-wrap:wrap; gap:6px; }
+.crm-noc-flags span { border-radius:999px; padding:4px 8px; background:#fee2e2; color:#991b1b; font-size:11px; font-weight:800; }
+.crm-noc-block small { color:#475569; }
+@media (max-width: 768px) { .crm-noc-grid { grid-template-columns:1fr; } }
