@@ -3522,3 +3522,21 @@ button:active {
     z-index:4;
   }
 }
+
+
+/* v2.1 multiatendimento */
+.crm-chat-row.priority-urgent { border-left: 4px solid #dc2626; }
+.crm-chat-row.priority-high { border-left: 4px solid #f97316; }
+.crm-chat-row.priority-low { border-left: 4px solid #64748b; }
+.crm-mini-badge.priority-urgent,
+.crm-priority-text.priority-urgent { background:#fee2e2;color:#991b1b;border-color:#fecaca; }
+.crm-mini-badge.priority-high,
+.crm-priority-text.priority-high { background:#ffedd5;color:#9a3412;border-color:#fed7aa; }
+.crm-mini-badge.priority-low,
+.crm-priority-text.priority-low { background:#f1f5f9;color:#334155;border-color:#cbd5e1; }
+.crm-mini-badge.queue { background:#e0f2fe;color:#075985;border-color:#bae6fd; }
+.crm-mini-badge.dept { background:#ecfdf5;color:#166534;border-color:#bbf7d0; }
+.crm-queue-controls { display:grid; gap:10px; margin:12px 0; padding:12px; border:1px solid #e5e7eb; border-radius:10px; background:#f8fafc; }
+.crm-queue-controls label { display:grid; gap:5px; font-size:12px; font-weight:800; color:#475569; }
+.crm-queue-controls select { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; background:#fff; color:#0f172a; }
+.crm-queue-controls button { border:0; border-radius:8px; padding:9px 12px; background:#0f172a; color:#fff; font-weight:800; cursor:pointer; }

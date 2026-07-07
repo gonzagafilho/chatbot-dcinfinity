@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#020617" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Painel Inteligente DC NET | DC Infinity</title>
-  <link rel="icon" type="image/png" href="/chatbot-admin/icons/favicon.png?v=20260707-conversations-no-autopen" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/chatbot-admin/icons/apple-touch-icon.png?v=20260707-conversations-no-autopen" />
-  <link rel="manifest" href="/chatbot-admin/manifest.webmanifest?v=20260707-conversations-no-autopen" type="application/manifest+json" />
-  <link rel="stylesheet" href="/chatbot-admin/styles.css?v=20260707-conversations-no-autopen" />
+  <link rel="icon" type="image/png" href="/chatbot-admin/icons/favicon.png?v=20260707-v210-central-atendimento" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/chatbot-admin/icons/apple-touch-icon.png?v=20260707-v210-central-atendimento" />
+  <link rel="manifest" href="/chatbot-admin/manifest.webmanifest?v=20260707-v210-central-atendimento" type="application/manifest+json" />
+  <link rel="stylesheet" href="/chatbot-admin/styles.css?v=20260707-v210-central-atendimento" />
 </head>
 <body>
   <div class="app-shell">
@@ -444,11 +444,12 @@
                   </div>
                   <div class="crm-filter-chips" id="conversationFilterChips">
                     <button type="button" class="is-active" data-conv-filter="all">Tudo</button>
+                    <button type="button" data-conv-filter="mine">Minha fila</button>
+                    <button type="button" data-conv-filter="waiting">Aguardando</button>
+                    <button type="button" data-conv-filter="assigned">Em atendimento</button>
+                    <button type="button" data-conv-filter="resolved">Resolvidos</button>
+                    <button type="button" data-conv-filter="urgent">Urgentes</button>
                     <button type="button" data-conv-filter="unread">Não lidas</button>
-                    <button type="button" data-conv-filter="favorite">Favoritas</button>
-                    <button type="button" data-conv-filter="Comercial">Comercial</button>
-                    <button type="button" data-conv-filter="Financeiro">Financeiro</button>
-                    <button type="button" data-conv-filter="Suporte">Suporte</button>
                     <button type="button" data-conv-filter="failed">Falhas</button>
                   </div>
                   <div id="conversationList" class="crm-chat-list">Carregando...</div>
@@ -812,7 +813,7 @@
       </div>
     </div>
   </div>
-  <script src="/chatbot-admin/panel.js?v=20260707-conversations-no-autopen" defer></script>
+  <script src="/chatbot-admin/panel.js?v=20260707-v210-central-atendimento" defer></script>
   <script
     async
     defer

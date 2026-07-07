@@ -1,23 +1,23 @@
 {
-  "updatedAt": "2026-06-17 10:32:01",
+  "updatedAt": "2026-07-07 11:41:01",
   "internet": {
     "name": "Internet",
     "ok": true,
-    "ms": 20.5
+    "ms": 16.8
   },
   "googleDns": {
     "name": "DNS Google",
     "ok": true,
-    "ms": 15.0
+    "ms": 15.1
   },
   "chatbotHttps": {
     "name": "Chatbot HTTPS",
     "ok": true,
-    "ms": 79.2
+    "ms": 70.6
   },
   "localApi": {
     "name": "API Local",
     "ok": true,
-    "ms": 0.2
+    "ms": 2.8
   }
 }

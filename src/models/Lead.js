@@ -53,9 +53,13 @@ const LeadSchema = new mongoose.Schema(
     beeswebCpfFromUnregisteredPhone: { type: Boolean, default: false },
     /** Menu financeiro 1-2 (boleto/pix) vindo de CPF pós-telefone desconhecido. */
     financeMenuTwoOptionsOnly: { type: Boolean, default: false },
-    assignedTo: { type: String, default: null },     // adminId/email
-    assignedToEmail: { type: String, default: null },
+    assignedTo: { type: String, default: null, index: true },     // adminId/email
+    assignedToName: { type: String, default: "" },
+    assignedToEmail: { type: String, default: null, index: true },
     assignedAt: { type: Date, default: null },
+    queueStatus: { type: String, enum: ["waiting", "assigned", "resolved", "paused"], default: "waiting", index: true },
+    priority: { type: String, enum: ["low", "normal", "high", "urgent"], default: "normal", index: true },
+    department: { type: String, enum: ["comercial", "financeiro", "suporte", "instalacao", "noc"], default: "comercial", index: true },
     resolvedAt: { type: Date, default: null },
 
     /** Verificação de cobertura GPS (fluxo comercial / panfleto) */

@@ -136,6 +136,8 @@ let conversationsPollTimer = null;
   var waHistoryPage = 1;
   var waHistoryHasMore = false;
   var conversationRows = [];
+  var conversationOperators = [];
+  var currentAdmin = null;
   var conversationSelectedPhone = "";
   var conversationUserOpened = false;
   var conversationSelectedLead = null;
@@ -1410,18 +1412,48 @@ let conversationsPollTimer = null;
     updateConversationAlertButtons();
   }
 
+  function currentAdminMatchesConversation(c) {
+    if (!currentAdmin || !c) return false;
+    var id = String(currentAdmin.id || currentAdmin._id || "");
+    var email = String(currentAdmin.email || "").toLowerCase();
+    return (!!id && String(c.assignedTo || "") === id) || (!!email && String(c.assignedToEmail || "").toLowerCase() === email);
+  }
+
+  function conversationQueueStatus(c) {
+    var q = String(c && c.queueStatus || "").toLowerCase();
+    if (q) return q;
+    var st = String(c && c.status || "").toLowerCase();
+    if (st.indexOf("final") >= 0 || st === "resolved" || st === "resolvido") return "resolved";
+    if ((c && (c.assignedTo || c.assignedToEmail)) || st.indexOf("humano") >= 0) return "assigned";
+    return "waiting";
+  }
+
+  function conversationPriorityLabel(priority) {
+    var p = String(priority || "normal").toLowerCase();
+    if (p === "urgent") return "Urgente";
+    if (p === "high") return "Alta";
+    if (p === "low") return "Baixa";
+    return "Normal";
+  }
+
+  function conversationDepartmentLabel(department) {
+    var d = String(department || "comercial").toLowerCase();
+    var map = { comercial: "Comercial", financeiro: "Financeiro", suporte: "Suporte", instalacao: "Instalacao", noc: "NOC" };
+    return map[d] || d;
+  }
+
   function renderConversationCrmStats() {
     var root = qs("conversationCrmStats");
     if (!root) return;
     var count = function (fn) { return conversationRows.filter(fn).length; };
     var stats = [
       ["Conversas abertas", conversationRows.length],
-      ["Não lidas", count(function (c) { return Number(c.unreadCount || 0) > 0 || c.unreadManual; })],
-      ["Em atendimento", count(function (c) { return String(c.status || "").toLowerCase().indexOf("humano") >= 0 || c.assignedToEmail; })],
-      ["Aguardando cliente", count(function (c) { return String(c.status || "").toLowerCase().indexOf("aguard") >= 0; })],
-      ["Financeiro", count(function (c) { return (c.tags || []).indexOf("Financeiro") >= 0 || String(c.lastIntent || "").toLowerCase().indexOf("financ") >= 0; })],
-      ["Comercial", count(function (c) { return (c.tags || []).indexOf("Comercial") >= 0 || String(c.lastIntent || "").toLowerCase().indexOf("comerc") >= 0; })],
-      ["Suporte", count(function (c) { return (c.tags || []).indexOf("Suporte") >= 0 || String(c.lastIntent || "").toLowerCase().indexOf("suporte") >= 0; })]
+      ["Minha fila", count(currentAdminMatchesConversation)],
+      ["Aguardando", count(function (c) { return conversationQueueStatus(c) === "waiting"; })],
+      ["Em atendimento", count(function (c) { return conversationQueueStatus(c) === "assigned"; })],
+      ["Resolvidos", count(function (c) { return conversationQueueStatus(c) === "resolved"; })],
+      ["Urgentes", count(function (c) { return String(c.priority || "").toLowerCase() === "urgent"; })],
+      ["Não lidas", count(function (c) { return Number(c.unreadCount || 0) > 0 || c.unreadManual; })]
     ];
     root.innerHTML = stats.map(function (s) { return '<div><b>' + convEsc(s[1]) + '</b><span>' + convEsc(s[0]) + '</span></div>'; }).join("");
   }
@@ -1441,6 +1473,15 @@ let conversationsPollTimer = null;
     }
   }
 
+  async function loadConversationOperators() {
+    try {
+      var data = await api("/api/chatbot-admin/operators?tenant=" + encodeURIComponent(convTenant()));
+      conversationOperators = Array.isArray(data.items) ? data.items : [];
+    } catch (e) {
+      conversationOperators = [];
+    }
+  }
+
   async function loadConversations() {
     var root = qs("conversationList");
     if (!root) return;
@@ -1454,6 +1495,7 @@ let conversationsPollTimer = null;
       params.set("tenant", convTenant());
       params.set("limit", "80");
       if (qs("conversationSearch") && qs("conversationSearch").value.trim()) params.set("q", qs("conversationSearch").value.trim());
+      if (!conversationOperators.length) loadConversationOperators();
       var data = await api("/api/chatbot-admin/conversations?" + params.toString());
       var nextRows = Array.isArray(data.items) ? data.items : (Array.isArray(data.rows) ? data.rows : []);
       updateConversationRealtimeSignals(nextRows);
@@ -1476,6 +1518,11 @@ let conversationsPollTimer = null;
     var f = String(filter || "all").toLowerCase();
     var tags = (c.tags || []).map(function (x) { return String(x).toLowerCase(); });
     if (f === "all") return true;
+    if (f === "mine") return currentAdminMatchesConversation(c);
+    if (f === "waiting") return conversationQueueStatus(c) === "waiting";
+    if (f === "assigned") return conversationQueueStatus(c) === "assigned";
+    if (f === "resolved") return conversationQueueStatus(c) === "resolved";
+    if (f === "urgent") return String(c.priority || "").toLowerCase() === "urgent";
     if (f === "unread") return Number(c.unreadCount || 0) > 0 || !!c.unreadManual;
     if (f === "failed") return !!c.hasFailed || String(c.status || "").toLowerCase() === "falhou";
     if (f === "favorite" || f === "favoritas") return !!c.isFavorite || tags.indexOf("favorito") >= 0;
@@ -1483,7 +1530,7 @@ let conversationsPollTimer = null;
   }
 
   function renderConversationFilterCounts() {
-    var labels = { all: "Tudo", unread: "Não lidas", favorite: "Favoritas", failed: "Falhas", Comercial: "Comercial", Financeiro: "Financeiro", Suporte: "Suporte" };
+    var labels = { all: "Tudo", mine: "Minha fila", waiting: "Aguardando", assigned: "Em atendimento", resolved: "Resolvidos", urgent: "Urgentes", unread: "Não lidas", failed: "Falhas", favorite: "Favoritas", Comercial: "Comercial", Financeiro: "Financeiro", Suporte: "Suporte" };
     Object.keys(labels).forEach(function (key) {
       var btn = document.querySelector('[data-conv-filter="' + key + '"]');
       if (!btn) return;
@@ -1516,7 +1563,10 @@ let conversationsPollTimer = null;
       var indicator = failedUi ? null : (c.indicator || null);
       var statusText = "";
       var typing = c.typingUntil && new Date(c.typingUntil).getTime() > Date.now();
-      return '<div class="crm-chat-row ' + (active ? 'is-active' : '') + (conversationNewPhones.has(String(c.phone)) ? ' is-new' : '') + '" data-conv-card="' + convEsc(c.phone) + '" data-conv-menu-phone="' + convEsc(c.phone) + '">' +
+      var priority = String(c.priority || "normal").toLowerCase();
+      var assigned = c.assignedToName || c.assignedToEmail || "Fila";
+      var queueStatus = conversationQueueStatus(c);
+      return '<div class="crm-chat-row priority-' + convEsc(priority) + ' queue-' + convEsc(queueStatus) + ' ' + (active ? 'is-active' : '') + (conversationNewPhones.has(String(c.phone)) ? ' is-new' : '') + '" data-conv-card="' + convEsc(c.phone) + '" data-conv-menu-phone="' + convEsc(c.phone) + '">' +
         convAvatarHtml(title, c, "crm-avatar") +
         '<button type="button" data-conv-phone="' + convEsc(c.phone) + '" class="crm-chat-main" style="border:none;background:transparent;text-align:left;padding:0;cursor:pointer">' +
           '<div class="crm-chat-top"><span class="crm-chat-name">' + (favorite ? '<span class="crm-star">★</span> ' : '') + convEsc(title) + '</span><span class="crm-chat-time">' + convEsc(convShortTime(c.lastMessageAt)) + '</span></div>' +
@@ -1524,6 +1574,9 @@ let conversationsPollTimer = null;
           '<div class="crm-chat-meta">' +
           (statusText ? '<span class="crm-mini-status" style="color:' + convStatusColor(status) + '">' + convEsc(statusText) + '</span>' : '') +
           (indicator ? '<span class="crm-conv-indicator tone-' + convEsc(indicator.tone || '') + '" title="' + convEsc(indicator.label || '') + '">' + convEsc(indicator.icon || '') + '</span>' : '') +
+          '<span class="crm-mini-badge queue">' + convEsc(assigned) + '</span>' +
+          '<span class="crm-mini-badge priority priority-' + convEsc(priority) + '">' + convEsc(conversationPriorityLabel(priority)) + '</span>' +
+          '<span class="crm-mini-badge dept">' + convEsc(conversationDepartmentLabel(c.department)) + '</span>' +
           (tag ? '<span class="crm-mini-badge">' + convEsc(tag) + '</span>' : '') +
           (unread ? '<span class="crm-mini-badge unread">' + unread + '</span>' : '') +
           '</div>' +
@@ -1550,6 +1603,7 @@ let conversationsPollTimer = null;
       var data = await api("/api/chatbot-admin/conversations/" + encodeURIComponent(phone) + "/messages?tenant=" + encodeURIComponent(convTenant()));
       conversationSelectedLead = data.lead || null;
       conversationAvailableTags = data.tags || conversationAvailableTags;
+      if (!conversationOperators.length) await loadConversationOperators();
       renderConversationLead(data.lead, phone);
       renderConversationTimeline(data.messages || []);
       var displayName = (data.lead && (data.lead.displayName || data.lead.name || data.lead.whatsappProfileName)) || phone;
@@ -1732,6 +1786,18 @@ let conversationsPollTimer = null;
     box.scrollTop = box.scrollHeight;
   }
 
+  function conversationOperatorOptions(selected) {
+    var current = String(selected || "");
+    var opts = ['<option value="">Fila sem responsavel</option>'];
+    conversationOperators.forEach(function (op) {
+      var value = op.adminId || op.email || op.id || "";
+      if (!value) return;
+      var label = (op.name || op.email || "Operador") + (op.email && op.name !== op.email ? " (" + op.email + ")" : "");
+      opts.push('<option value="' + convEsc(value) + '" ' + (String(value) === current || String(op.email || "") === current ? 'selected' : '') + '>' + convEsc(label) + '</option>');
+    });
+    return opts.join("");
+  }
+
   function renderConversationLead(lead, phone) {
     var box = qs("conversationLeadBox");
     if (!box) return;
@@ -1761,8 +1827,18 @@ let conversationsPollTimer = null;
       '<div><b>Data cadastro</b><span>' + convEsc(l.customerSince ? convShortTime(l.customerSince) : (l.updatedAt ? new Date(l.updatedAt).toLocaleDateString("pt-BR") : '-')) + '</span></div>' +
       '<div><b>Último atendimento</b><span>' + convEsc(l.lastAttendanceAt ? new Date(l.lastAttendanceAt).toLocaleString("pt-BR") : '-') + '</span></div>' +
       '<div><b>Status</b><span>' + convEsc(l.status || '-') + '</span></div>' +
+      '<div><b>Fila</b><span>' + convEsc(conversationQueueStatus(l)) + '</span></div>' +
+      '<div><b>Responsavel</b><span>' + convEsc(l.assignedToName || l.assignedToEmail || 'Fila') + '</span></div>' +
+      '<div><b>Prioridade</b><span class="crm-priority-text priority-' + convEsc(l.priority || 'normal') + '">' + convEsc(conversationPriorityLabel(l.priority)) + '</span></div>' +
+      '<div><b>Setor</b><span>' + convEsc(conversationDepartmentLabel(l.department)) + '</span></div>' +
       '<div><b>Última campanha</b><span>' + convEsc(l.lastCampaign || '-') + '</span></div>' +
       '<div><b>Templates enviados</b><span id="conversationTemplateCount">-</span></div>' +
+      '</div>' +
+      '<div class="crm-queue-controls">' +
+        '<label>Prioridade<select id="conversationPrioritySelect"><option value="low" ' + (l.priority === 'low' ? 'selected' : '') + '>Baixa</option><option value="normal" ' + (!l.priority || l.priority === 'normal' ? 'selected' : '') + '>Normal</option><option value="high" ' + (l.priority === 'high' ? 'selected' : '') + '>Alta</option><option value="urgent" ' + (l.priority === 'urgent' ? 'selected' : '') + '>Urgente</option></select></label>' +
+        '<label>Setor<select id="conversationDepartmentSelect"><option value="comercial" ' + (l.department === 'comercial' ? 'selected' : '') + '>Comercial</option><option value="financeiro" ' + (l.department === 'financeiro' ? 'selected' : '') + '>Financeiro</option><option value="suporte" ' + (l.department === 'suporte' ? 'selected' : '') + '>Suporte</option><option value="instalacao" ' + (l.department === 'instalacao' ? 'selected' : '') + '>Instalacao</option><option value="noc" ' + (l.department === 'noc' ? 'selected' : '') + '>NOC</option></select></label>' +
+        '<label>Transferir para<select id="conversationTransferSelect">' + conversationOperatorOptions(l.assignedTo || l.assignedToEmail) + '</select></label>' +
+        '<button type="button" id="btnConversationTransfer">Transferir</button>' +
       '</div>' +
       '<div class="crm-lead-timeline"><h3>Linha do tempo</h3>' + (events.length ? events.map(function (ev) { return '<div><b>' + convEsc(ev.label || ev.type || 'Evento') + '</b><span>' + convEsc(ev.by || '') + ' ' + convEsc(ev.at ? new Date(ev.at).toLocaleString("pt-BR") : '') + '</span></div>'; }).join('') : '<p class="muted">Sem eventos registrados.</p>') + '</div>';
     renderConversationTags(l.tags || []);
@@ -1871,12 +1947,29 @@ let conversationsPollTimer = null;
     try {
       var data = await api("/api/chatbot-admin/conversations/" + encodeURIComponent(conversationSelectedPhone) + "/lead", {
         method: "PATCH",
-        body: { tenant: convTenant(), tags: selectedConversationTags(), internalNotes: (qs("conversationInternalNotes") && qs("conversationInternalNotes").value) || "" }
+        body: { tenant: convTenant(), tags: selectedConversationTags(), internalNotes: (qs("conversationInternalNotes") && qs("conversationInternalNotes").value) || "", priority: (qs("conversationPrioritySelect") && qs("conversationPrioritySelect").value) || "normal", department: (qs("conversationDepartmentSelect") && qs("conversationDepartmentSelect").value) || "comercial" }
       });
       conversationSelectedLead = data.lead || null;
       renderConversationLead(conversationSelectedLead, conversationSelectedPhone);
       if (st) st.textContent = "Dados salvos.";
       loadConversations();
+    } catch (e) {
+      if (st) st.textContent = "Erro: " + (e.message || e);
+    }
+  }
+
+  async function transferConversation() {
+    if (!conversationSelectedPhone) return alert("Selecione uma conversa.");
+    var st = qs("conversationLeadStatus");
+    var select = qs("conversationTransferSelect");
+    if (st) st.textContent = "Transferindo...";
+    try {
+      var data = await api("/api/chatbot-admin/conversations/" + encodeURIComponent(conversationSelectedPhone) + "/transfer", { method: "POST", body: { tenant: convTenant(), operatorId: select ? select.value : "" } });
+      conversationSelectedLead = data.lead || null;
+      renderConversationLead(conversationSelectedLead, conversationSelectedPhone);
+      loadConversationMessages(conversationSelectedPhone, true);
+      loadConversations();
+      if (st) st.textContent = "Atendimento transferido.";
     } catch (e) {
       if (st) st.textContent = "Erro: " + (e.message || e);
     }
@@ -1892,7 +1985,7 @@ let conversationsPollTimer = null;
       renderConversationLead(conversationSelectedLead, conversationSelectedPhone);
       loadConversationMessages(conversationSelectedPhone, true);
       loadConversations();
-      if (st) st.textContent = action === "assume" ? "Atendimento assumido." : "Atendimento finalizado.";
+      if (st) st.textContent = action === "assume" ? "Atendimento assumido." : (action === "resolve" ? "Atendimento finalizado." : (action === "reopen" ? "Atendimento reaberto." : "Atendimento atualizado."));
     } catch (e) {
       if (st) st.textContent = "Erro: " + (e.message || e);
     }
@@ -2261,6 +2354,7 @@ let conversationsPollTimer = null;
     if (tabId === "conversations") {
       try {
         resetConversationSelection();
+        loadConversationOperators();
         loadConversations();
         startConversationPolling();
       } catch (e) {
@@ -2496,7 +2590,8 @@ document.querySelectorAll("img.preview").forEach(function (img) {
       });
       if (!data.token) throw new Error("sem_token");
       setToken(data.token);
-      await api("/api/chatbot-admin/me");
+      var me = await api("/api/chatbot-admin/me");
+      currentAdmin = me.admin || null;
       setText(qs("loginStatus"), "Login realizado, carregando painel...", "ok");
       if (passwordEl) passwordEl.value = "";
       if (qs("loginCard")) qs("loginCard").style.display = "none";
@@ -3032,6 +3127,12 @@ qs("btnSave").addEventListener("click", save);
       ev.preventDefault();
       saveConversationAvatar();
     });
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("#btnConversationTransfer");
+      if (!btn) return;
+      ev.preventDefault();
+      transferConversation();
+    });
 
     if (qs("btnConversationsRefresh")) qs("btnConversationsRefresh").addEventListener("click", loadConversations);
     if (qs("btnConversationSound")) qs("btnConversationSound").addEventListener("click", function () {
@@ -3371,7 +3472,8 @@ qs("btnSave").addEventListener("click", save);
 
     if (getToken()) {
       api("/api/chatbot-admin/me")
-        .then(function () {
+        .then(function (me) {
+          currentAdmin = me.admin || null;
           qs("loginCard").style.display = "none";
           qs("editorCard").style.display = "block";
           setSidebarVisible(true);

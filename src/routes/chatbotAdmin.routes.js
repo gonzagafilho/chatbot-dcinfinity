@@ -24,6 +24,7 @@ const {
 const MaintenanceBroadcastJob = require("../models/MaintenanceBroadcastJob");
 const CoverageArea = require("../models/CoverageArea");
 const Lead = require("../models/Lead");
+const Operator = require("../models/Operator");
 const CampaignExecutionLog = require("../models/CampaignExecutionLog");
 const WaMessage = require("../models/WaMessage");
 const { sendWhatsAppText, sendWhatsAppImage, sendWhatsAppMedia, sendWhatsAppTemplate, translateMetaError } = require("../services/whatsappSend");
@@ -43,6 +44,10 @@ const {
 } = require("../jobs/seasonalCampaignScheduler");
 
 const router = express.Router();
+
+const QUEUE_STATUSES = new Set(["waiting", "assigned", "resolved", "paused"]);
+const CONVERSATION_PRIORITIES = new Set(["low", "normal", "high", "urgent"]);
+const CONVERSATION_DEPARTMENTS = new Set(["comercial", "financeiro", "suporte", "instalacao", "noc"]);
 
 let seasonalCampaignRunning = false;
 
@@ -1506,6 +1511,43 @@ function compactMetaRaw(raw) {
   };
 }
 
+function adminDisplayName(admin) {
+  return String(admin?.nome || admin?.name || admin?.email || admin?._id || "").trim();
+}
+
+async function ensureOperatorForAdmin(admin, tenant) {
+  if (!admin) return null;
+  const email = String(admin.email || "").toLowerCase().trim();
+  const adminId = String(admin._id || "");
+  const name = adminDisplayName(admin) || email || adminId || "Operador";
+  if (!email && !adminId) return null;
+  const query = email ? { tenant, email } : { tenant, adminId };
+  return Operator.findOneAndUpdate(
+    query,
+    { $set: { tenant, adminId, email, name, role: String(admin.role || "operator").toLowerCase(), active: admin.active !== false, lastSeenAt: new Date() } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).lean().catch(() => null);
+}
+
+function normalizedQueueStatus(lead) {
+  const q = String(lead?.queueStatus || "").toLowerCase();
+  if (QUEUE_STATUSES.has(q)) return q;
+  const st = String(lead?.status || "").toLowerCase();
+  if (st === "resolved" || st === "resolvido") return "resolved";
+  if (lead?.assignedTo || lead?.assignedToEmail) return "assigned";
+  return "waiting";
+}
+
+function normalizedPriority(value) {
+  const p = String(value || "normal").toLowerCase();
+  return CONVERSATION_PRIORITIES.has(p) ? p : "normal";
+}
+
+function normalizedDepartment(value) {
+  const d = String(value || "comercial").toLowerCase();
+  return CONVERSATION_DEPARTMENTS.has(d) ? d : "comercial";
+}
+
 function conversationLeadPayload(lead) {
   if (!lead) return null;
   return {
@@ -1538,7 +1580,12 @@ function conversationLeadPayload(lead) {
     unreadManual: !!lead.unreadManual,
     internalNotes: lead.internalNotes || "",
     assignedTo: lead.assignedTo || "",
+    assignedToName: lead.assignedToName || lead.assignedToEmail || "",
     assignedToEmail: lead.assignedToEmail || "",
+    assignedAt: lead.assignedAt || null,
+    queueStatus: normalizedQueueStatus(lead),
+    priority: normalizedPriority(lead.priority),
+    department: normalizedDepartment(lead.department),
     resolvedAt: lead.resolvedAt || null,
     coverageStatus: lead.coverageStatus || "",
     coverageAreaName: lead.coverageAreaName || "",
@@ -1634,7 +1681,13 @@ router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) =>
         city: lead?.city || "",
         neighborhood: lead?.neighborhood || "",
         protocol: lead?.protocol || "",
+        assignedTo: lead?.assignedTo || "",
+        assignedToName: lead?.assignedToName || lead?.assignedToEmail || "",
         assignedToEmail: lead?.assignedToEmail || "",
+        assignedAt: lead?.assignedAt || null,
+        queueStatus: normalizedQueueStatus(lead),
+        priority: normalizedPriority(lead?.priority),
+        department: normalizedDepartment(lead?.department),
         typingUntil: lead?.typingUntil || null,
         tags: leadTags,
         metaError: last.metaError || null,
@@ -1648,6 +1701,38 @@ router.get("/chatbot-admin/conversations", requireAdminAuth, async (req, res) =>
       rows = rows.filter((r) => [r.phone, r.leadName, r.displayName, r.whatsappProfileName, r.lastMessage, r.status, r.lastIntent, r.origin, (r.tags || []).join(" ")].join(" ").toLowerCase().includes(needle));
     }
     return res.json({ ok: true, items: rows, rows, tags: CONVERSATION_TAGS });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.get("/chatbot-admin/conversations/queue", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.query.tenant);
+    await ensureOperatorForAdmin(req.admin, tenant);
+    const status = String(req.query.status || "").toLowerCase();
+    const department = String(req.query.department || "").toLowerCase();
+    const priority = String(req.query.priority || "").toLowerCase();
+    const mine = String(req.query.mine || "false").toLowerCase() === "true";
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "120", 10) || 120, 1), 300);
+    const query = { tenant, channel: "whatsapp" };
+    if (QUEUE_STATUSES.has(status)) query.queueStatus = status;
+    if (CONVERSATION_DEPARTMENTS.has(department)) query.department = department;
+    if (CONVERSATION_PRIORITIES.has(priority)) query.priority = priority;
+    if (mine) query.$or = [{ assignedTo: String(req.admin?._id || "") }, { assignedToEmail: req.admin?.email || "" }];
+    const leads = await Lead.find(query).sort({ priority: -1, updatedAt: -1 }).limit(limit).lean();
+    return res.json({ ok: true, items: leads.map(conversationLeadPayload), statuses: Array.from(QUEUE_STATUSES), priorities: Array.from(CONVERSATION_PRIORITIES), departments: Array.from(CONVERSATION_DEPARTMENTS) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.get("/chatbot-admin/operators", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.query.tenant);
+    await ensureOperatorForAdmin(req.admin, tenant);
+    const operators = await Operator.find({ tenant, active: { $ne: false } }).sort({ name: 1, email: 1 }).lean();
+    return res.json({ ok: true, items: operators.map((op) => ({ id: String(op._id || ""), adminId: op.adminId || "", name: op.name || op.email || "Operador", email: op.email || "", departments: op.departments || [], active: op.active !== false })) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
@@ -1873,11 +1958,12 @@ router.post("/chatbot-admin/conversations/:phone/send", requireAdminAuth, async 
     if (!phone) return res.status(400).json({ ok: false, error: "phone_required" });
     if (!text && !mediaUrl) return res.status(400).json({ ok: false, error: "message_required" });
     try {
-      const operatorName = req.admin?.name || req.admin?.email || "Operador";
+      const operatorName = adminDisplayName(req.admin) || req.admin?.email || "Operador";
       const operatorEmail = req.admin?.email || "";
       const sendOptions = { tenant, origin: "human_chat", operatorId: String(req.admin?._id || ""), operatorName, operatorEmail, responseKind: "manual", auditAction: "reply", auditBy: operatorEmail || operatorName, replyToMessageId, replyToText, replyToWamid };
       const sent = mediaUrl ? await sendWhatsAppMedia(phone, mediaType, mediaUrl, text, filename, sendOptions) : await sendWhatsAppText(phone, text, sendOptions);
-      await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "handoff", lastIntent: "human_chat", assignedTo: String(req.admin?._id || ""), assignedToEmail: operatorEmail, assignedAt: new Date(), lastAttendanceAt: new Date() }, $push: { timelineEvents: { type: "manual_reply", label: "Mensagem manual", by: operatorEmail || operatorName, at: new Date() } }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" } }, { upsert: true, new: true });
+      await ensureOperatorForAdmin(req.admin, tenant);
+      await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "handoff", queueStatus: "assigned", lastIntent: "human_chat", assignedTo: String(req.admin?._id || ""), assignedToName: operatorName, assignedToEmail: operatorEmail, assignedAt: new Date(), lastAttendanceAt: new Date() }, $push: { timelineEvents: { type: "manual_reply", label: "Mensagem manual", by: operatorEmail || operatorName, at: new Date() } }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp", priority: "normal", department: "comercial" } }, { upsert: true, new: true });
       return res.json({ ok: true, sent });
     } catch (e) {
       const meta = e.meta || e.metaError || null;
@@ -1915,10 +2001,13 @@ router.post("/chatbot-admin/conversations/:phone/assume", requireAdminAuth, asyn
   try {
     const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
     const phone = normalizeConversationPhone(req.params.phone);
+    if (!phone) return res.status(400).json({ ok: false, error: "phone_required" });
     const adminId = String(req.admin?._id || "");
     const email = req.admin?.email || "";
-    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "handoff", assignedTo: adminId, assignedToEmail: email, assignedAt: new Date(), lastIntent: "human_chat" }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" } }, { upsert: true, new: true }).lean();
-    await WaMessage.create({ tenant, channel: "whatsapp", origin: "human_chat", direction: "system", from: "admin", to: phone, text: "Atendimento assumido por " + (email || adminId || "admin"), messageType: "system", raw: { event: "assume", adminId, email, at: new Date() } });
+    const name = adminDisplayName(req.admin) || email || adminId || "admin";
+    await ensureOperatorForAdmin(req.admin, tenant);
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "handoff", queueStatus: "assigned", assignedTo: adminId, assignedToName: name, assignedToEmail: email, assignedAt: new Date(), lastAttendanceAt: new Date(), lastIntent: "human_chat" }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp", priority: "normal", department: "comercial" }, $push: { timelineEvents: { type: "assume", label: "Atendimento assumido", by: email || name, at: new Date() } } }, { upsert: true, new: true }).lean();
+    await WaMessage.create({ tenant, channel: "whatsapp", origin: "human_chat", direction: "system", from: "admin", to: phone, text: "Atendimento assumido por " + (name || email || adminId || "admin"), messageType: "system", raw: { event: "assume", adminId, email, name, at: new Date() }, auditAction: "assume", auditBy: email || name, auditAt: new Date() });
     return res.json({ ok: true, lead: conversationLeadPayload(lead) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -1930,7 +2019,7 @@ router.post("/chatbot-admin/conversations/:phone/resolve", requireAdminAuth, asy
     const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
     const phone = normalizeConversationPhone(req.params.phone);
     const by = req.admin?.email || String(req.admin?._id || "");
-    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "resolved", resolvedAt: new Date(), lastAttendanceAt: new Date() }, $push: { timelineEvents: { type: "resolve", label: "Atendimento finalizado", by, at: new Date() } } }, { new: true }).lean();
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "resolved", queueStatus: "resolved", resolvedAt: new Date(), lastAttendanceAt: new Date() }, $push: { timelineEvents: { type: "resolve", label: "Atendimento finalizado", by, at: new Date() } } }, { new: true }).lean();
     await WaMessage.create({ tenant, channel: "whatsapp", origin: "human_chat", direction: "system", from: "admin", to: phone, text: "Atendimento finalizado", messageType: "system", raw: { event: "resolve", admin: by, at: new Date() }, auditAction: "resolve", auditBy: by, auditAt: new Date() });
     return res.json({ ok: true, lead: conversationLeadPayload(lead) });
   } catch (e) {
@@ -1943,8 +2032,8 @@ router.post("/chatbot-admin/conversations/:phone/release", requireAdminAuth, asy
     const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
     const phone = normalizeConversationPhone(req.params.phone);
     const by = req.admin?.email || String(req.admin?._id || "");
-    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "aguardando_cliente", assignedTo: "", assignedToEmail: "", lastAttendanceAt: new Date() }, $push: { timelineEvents: { type: "release", label: "Atendimento liberado", by, at: new Date() } } }, { new: true }).lean();
-    await WaMessage.create({ tenant, channel: "whatsapp", origin: "human_chat", direction: "system", from: "admin", to: phone, text: "Atendimento liberado", messageType: "system", raw: { event: "release", admin: by, at: new Date() }, auditAction: "release", auditBy: by, auditAt: new Date() });
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "aguardando_cliente", queueStatus: "paused", assignedTo: "", assignedToName: "", assignedToEmail: "", assignedAt: null, lastAttendanceAt: new Date() }, $push: { timelineEvents: { type: "release", label: "Atendimento pausado/liberado", by, at: new Date() } } }, { new: true }).lean();
+    await WaMessage.create({ tenant, channel: "whatsapp", origin: "human_chat", direction: "system", from: "admin", to: phone, text: "Atendimento pausado/liberado", messageType: "system", raw: { event: "release", admin: by, at: new Date() }, auditAction: "release", auditBy: by, auditAt: new Date() });
     return res.json({ ok: true, lead: conversationLeadPayload(lead) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -1956,8 +2045,62 @@ router.post("/chatbot-admin/conversations/:phone/reopen", requireAdminAuth, asyn
     const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
     const phone = normalizeConversationPhone(req.params.phone);
     const by = req.admin?.email || String(req.admin?._id || "");
-    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "handoff", resolvedAt: null, lastAttendanceAt: new Date(), assignedTo: String(req.admin?._id || ""), assignedToEmail: req.admin?.email || "" }, $push: { timelineEvents: { type: "reopen", label: "Atendimento reaberto", by, at: new Date() } } }, { new: true }).lean();
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { status: "handoff", queueStatus: "assigned", resolvedAt: null, lastAttendanceAt: new Date(), assignedTo: String(req.admin?._id || ""), assignedToName: adminDisplayName(req.admin), assignedToEmail: req.admin?.email || "" }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp", priority: "normal", department: "comercial" }, $push: { timelineEvents: { type: "reopen", label: "Atendimento reaberto", by, at: new Date() } } }, { upsert: true, new: true }).lean();
     await WaMessage.create({ tenant, channel: "whatsapp", origin: "human_chat", direction: "system", from: "admin", to: phone, text: "Atendimento reaberto", messageType: "system", raw: { event: "reopen", admin: by, at: new Date() }, auditAction: "reopen", auditBy: by, auditAt: new Date() });
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.post("/chatbot-admin/conversations/:phone/transfer", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    if (!phone) return res.status(400).json({ ok: false, error: "phone_required" });
+    const operatorId = String(req.body?.operatorId || req.body?.assignedTo || "").trim();
+    const operatorEmail = String(req.body?.operatorEmail || req.body?.email || "").toLowerCase().trim();
+    const operatorName = String(req.body?.operatorName || req.body?.name || "").trim();
+    let operator = null;
+    if (operatorId) {
+      const operatorOr = [{ adminId: operatorId }];
+      if (mongoose.Types.ObjectId.isValid(operatorId)) operatorOr.push({ _id: operatorId });
+      operator = await Operator.findOne({ tenant, $or: operatorOr }).lean().catch(() => null);
+    }
+    if (!operator && operatorEmail) operator = await Operator.findOne({ tenant, email: operatorEmail }).lean();
+    const assignedTo = operator?.adminId || operatorId || "";
+    const assignedToEmail = operator?.email || operatorEmail || "";
+    const assignedToName = operator?.name || operatorName || assignedToEmail || assignedTo || "Fila";
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const set = assignedTo || assignedToEmail ? { status: "handoff", queueStatus: "assigned", assignedTo, assignedToName, assignedToEmail, assignedAt: new Date(), lastAttendanceAt: new Date() } : { status: "novo", queueStatus: "waiting", assignedTo: "", assignedToName: "", assignedToEmail: "", assignedAt: null, lastAttendanceAt: new Date() };
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: set, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp", priority: "normal", department: "comercial" }, $push: { timelineEvents: { type: "transfer", label: "Atendimento transferido", by, to: assignedToName, at: new Date() } } }, { upsert: true, new: true }).lean();
+    await WaMessage.create({ tenant, channel: "whatsapp", origin: "human_chat", direction: "system", from: "admin", to: phone, text: "Atendimento transferido para " + assignedToName, messageType: "system", raw: { event: "transfer", admin: by, assignedTo, assignedToEmail, assignedToName, at: new Date() }, auditAction: "transfer", auditBy: by, auditAt: new Date() });
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.patch("/chatbot-admin/conversations/:phone/priority", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    const priority = normalizedPriority(req.body?.priority);
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { priority, lastAttendanceAt: new Date() }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" }, $push: { timelineEvents: { type: "priority", label: "Prioridade alterada para " + priority, by, at: new Date() } } }, { upsert: true, new: true }).lean();
+    return res.json({ ok: true, lead: conversationLeadPayload(lead) });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+router.patch("/chatbot-admin/conversations/:phone/department", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.body?.tenant || req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    const department = normalizedDepartment(req.body?.department);
+    const by = req.admin?.email || String(req.admin?._id || "");
+    const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: { department, lastAttendanceAt: new Date() }, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" }, $push: { timelineEvents: { type: "department", label: "Setor alterado para " + department, by, at: new Date() } } }, { upsert: true, new: true }).lean();
     return res.json({ ok: true, lead: conversationLeadPayload(lead) });
   } catch (e) {
     return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -1983,6 +2126,9 @@ router.patch("/chatbot-admin/conversations/:phone/lead", requireAdminAuth, async
     if (req.body?.connectionStatus != null) set.connectionStatus = String(req.body.connectionStatus || "").slice(0, 80);
     if (req.body?.protocol != null) set.protocol = String(req.body.protocol || "").slice(0, 80);
     if (req.body?.unreadManual != null) set.unreadManual = !!req.body.unreadManual;
+    if (req.body?.priority != null) set.priority = normalizedPriority(req.body.priority);
+    if (req.body?.department != null) set.department = normalizedDepartment(req.body.department);
+    if (req.body?.queueStatus != null && QUEUE_STATUSES.has(String(req.body.queueStatus).toLowerCase())) set.queueStatus = String(req.body.queueStatus).toLowerCase();
     if (!Object.keys(set).length) return res.status(400).json({ ok: false, error: "empty_patch" });
     const lead = await Lead.findOneAndUpdate({ tenant, phone }, { $set: set, $setOnInsert: { tenant, phone, channel: "whatsapp", origin: "whatsapp" } }, { upsert: true, new: true }).lean();
     return res.json({ ok: true, lead: conversationLeadPayload(lead), tags: CONVERSATION_TAGS });
