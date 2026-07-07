@@ -153,6 +153,9 @@ let conversationsPollTimer = null;
   var conversationKnownLastIds = {};
   var conversationNewPhones = new Set();
   var conversationLastMessages = [];
+  var conversationCustomerHistoryRows = [];
+  var conversationCustomerHistoryFilters = [];
+  var conversationCustomerHistoryFilter = "all";
   var conversationReplyTarget = null;
   var conversationAttachment = null;
   var conversationThreadSearch = "";
@@ -1934,6 +1937,22 @@ let conversationsPollTimer = null;
     '</div>';
   }
 
+  function renderConversationHistoryBlock(l) {
+    var events = Array.isArray(l.timelineEvents) ? l.timelineEvents.length : 0;
+    var notes = l.internalNotes ? 1 : 0;
+    var ai = l.aiAnalyzedAt || l.aiSummary ? 1 : 0;
+    var crm = l.pipelineStage || l.nextFollowUpAt || l.dealValue ? 1 : 0;
+    var noc = l.nocDiagnostic || l.connectionStatus || l.lastConnectionDropAt ? 1 : 0;
+    var total = events + notes + ai + crm + noc + (conversationLastMessages ? conversationLastMessages.length : 0);
+    return '<div class="crm-history-block">' +
+      '<div class="crm-history-block__head"><h3>Histórico do Cliente</h3><button type="button" id="btnConversationOpenHistory">Ver histórico completo</button></div>' +
+      '<div class="crm-history-summary">' +
+        '<span><b>' + convEsc(total || '-') + '</b> registros</span>' +
+        '<span>WhatsApp, fila, IA, CRM, NOC, campanhas e notas</span>' +
+      '</div>' +
+    '</div>';
+  }
+
   function conversationOperatorOptions(selected) {
     var current = String(selected || "");
     var opts = ['<option value="">Fila sem responsavel</option>'];
@@ -1985,6 +2004,7 @@ let conversationsPollTimer = null;
       renderConversationNocBlock(l) +
       renderConversationCrmBlock(l) +
       renderConversationAiBlock(l) +
+      renderConversationHistoryBlock(l) +
       '<div class="crm-queue-controls">' +
         '<label>Prioridade<select id="conversationPrioritySelect"><option value="low" ' + (l.priority === 'low' ? 'selected' : '') + '>Baixa</option><option value="normal" ' + (!l.priority || l.priority === 'normal' ? 'selected' : '') + '>Normal</option><option value="high" ' + (l.priority === 'high' ? 'selected' : '') + '>Alta</option><option value="urgent" ' + (l.priority === 'urgent' ? 'selected' : '') + '>Urgente</option></select></label>' +
         '<label>Setor<select id="conversationDepartmentSelect"><option value="comercial" ' + (l.department === 'comercial' ? 'selected' : '') + '>Comercial</option><option value="financeiro" ' + (l.department === 'financeiro' ? 'selected' : '') + '>Financeiro</option><option value="suporte" ' + (l.department === 'suporte' ? 'selected' : '') + '>Suporte</option><option value="instalacao" ' + (l.department === 'instalacao' ? 'selected' : '') + '>Instalacao</option><option value="noc" ' + (l.department === 'noc' ? 'selected' : '') + '>NOC</option></select></label>' +
@@ -2425,10 +2445,67 @@ let conversationsPollTimer = null;
   }
 
   function closeConversationModals() {
-    ["conversationMetaDetailsModal", "conversationTemplateModal"].forEach(function (id) {
+    ["conversationMetaDetailsModal", "conversationTemplateModal", "conversationHistoryModal"].forEach(function (id) {
       var el = qs(id);
       if (el) el.hidden = true;
     });
+  }
+
+
+  function conversationHistoryTypeLabel(type) {
+    var labels = { all: "Todos", message: "Mensagens", queue: "Fila", priority: "Prioridade", department: "Setor", ai: "IA", crm: "CRM", noc: "NOC", campaign: "Campanhas", template: "Templates", media: "Midias", note: "Notas", event: "Eventos" };
+    return labels[type] || type || "Evento";
+  }
+
+  function renderConversationHistoryFilters() {
+    var root = qs("conversationHistoryFilters");
+    if (!root) return;
+    var filters = conversationCustomerHistoryFilters.length ? conversationCustomerHistoryFilters : [{ type: "all", label: "Todos", count: conversationCustomerHistoryRows.length }];
+    root.innerHTML = filters.map(function (f) {
+      var type = f.type || "all";
+      return '<button type="button" class="' + (conversationCustomerHistoryFilter === type ? 'is-active' : '') + '" data-history-filter="' + convEsc(type) + '">' + convEsc(f.label || conversationHistoryTypeLabel(type)) + ' <span>' + convEsc(f.count || 0) + '</span></button>';
+    }).join("");
+  }
+
+  function renderConversationHistoryTimeline() {
+    var root = qs("conversationHistoryTimeline");
+    if (!root) return;
+    var rows = conversationCustomerHistoryFilter === "all" ? conversationCustomerHistoryRows : conversationCustomerHistoryRows.filter(function (r) { return r.type === conversationCustomerHistoryFilter; });
+    if (!rows.length) { root.innerHTML = '<p class="muted">Nenhum evento encontrado neste filtro.</p>'; return; }
+    root.innerHTML = rows.map(function (r) {
+      var when = r.at ? new Date(r.at).toLocaleString("pt-BR") : "Sem data";
+      var details = r.details ? Object.keys(r.details).filter(function (k) { return r.details[k] !== null && r.details[k] !== undefined && r.details[k] !== ""; }).slice(0, 6).map(function (k) { return '<span><b>' + convEsc(k) + '</b> ' + convEsc(Array.isArray(r.details[k]) ? r.details[k].join(', ') : String(r.details[k])) + '</span>'; }).join('') : '';
+      return '<article class="crm-history-item tone-' + convEsc(r.tone || 'default') + '">' +
+        '<div class="crm-history-item__marker"></div>' +
+        '<div class="crm-history-item__body">' +
+          '<div class="crm-history-item__top"><strong>' + convEsc(r.label || conversationHistoryTypeLabel(r.type)) + '</strong><span>' + convEsc(when) + '</span></div>' +
+          '<p>' + convEsc(r.summary || '-') + '</p>' +
+          '<div class="crm-history-item__meta"><span>' + convEsc(conversationHistoryTypeLabel(r.type)) + '</span>' + (r.by ? '<span>' + convEsc(r.by) + '</span>' : '') + '</div>' +
+          (details ? '<div class="crm-history-item__details">' + details + '</div>' : '') +
+        '</div>' +
+      '</article>';
+    }).join("");
+  }
+
+  async function openConversationHistoryModal() {
+    if (!conversationSelectedPhone) return alert("Selecione uma conversa.");
+    var modal = qs("conversationHistoryModal");
+    var title = qs("conversationHistoryTitle");
+    var root = qs("conversationHistoryTimeline");
+    conversationCustomerHistoryFilter = "all";
+    if (title) title.textContent = "Histórico do Cliente - " + conversationSelectedPhone;
+    if (root) root.innerHTML = '<p class="muted">Carregando histórico...</p>';
+    if (modal) modal.hidden = false;
+    try {
+      var data = await api("/api/chatbot-admin/customers/" + encodeURIComponent(conversationSelectedPhone) + "/history?tenant=" + encodeURIComponent(convTenant()));
+      conversationCustomerHistoryRows = data.items || [];
+      conversationCustomerHistoryFilters = data.filters || [];
+      if (data.lead) conversationSelectedLead = data.lead;
+      renderConversationHistoryFilters();
+      renderConversationHistoryTimeline();
+    } catch (e) {
+      if (root) root.innerHTML = '<p class="muted">Erro ao carregar histórico: ' + convEsc(e.message || e) + '</p>';
+    }
   }
 
   function showConversationMetaDetails(messageId) {
@@ -3370,6 +3447,12 @@ qs("btnSave").addEventListener("click", save);
       ev.preventDefault();
       diagnoseConversationNoc();
     });
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("#btnConversationOpenHistory");
+      if (!btn) return;
+      ev.preventDefault();
+      openConversationHistoryModal();
+    });
 
     if (qs("btnConversationsRefresh")) qs("btnConversationsRefresh").addEventListener("click", loadConversations);
     if (qs("btnConversationSound")) qs("btnConversationSound").addEventListener("click", function () {
@@ -3553,6 +3636,14 @@ qs("btnSave").addEventListener("click", save);
         ev.preventDefault();
         conversationSelectedTemplateId = chooseTpl.getAttribute("data-conv-template-id") || "";
         renderConversationTemplateList();
+        return;
+      }
+      var historyFilter = ev.target && ev.target.closest && ev.target.closest("[data-history-filter]");
+      if (historyFilter) {
+        ev.preventDefault();
+        conversationCustomerHistoryFilter = historyFilter.getAttribute("data-history-filter") || "all";
+        renderConversationHistoryFilters();
+        renderConversationHistoryTimeline();
         return;
       }
       var quick = ev.target && ev.target.closest && ev.target.closest("[data-quick-reply]");

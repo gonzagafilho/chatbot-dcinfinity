@@ -1908,6 +1908,136 @@ function conversationPhoneMongoQuery(tenant, phone) {
   return { tenant, channel: "whatsapp", $or: [{ from: phoneRe }, { to: phoneRe }] };
 }
 
+function customerHistoryDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function customerHistoryType(type) {
+  const t = String(type || "").toLowerCase();
+  if (["assume", "resolve", "release", "reopen", "transfer", "manual_reply"].includes(t)) return "queue";
+  if (["priority"].includes(t)) return "priority";
+  if (["department"].includes(t)) return "department";
+  if (t.startsWith("crm")) return "crm";
+  if (t.includes("ai")) return "ai";
+  if (t.includes("noc") || t.includes("network") || t.includes("connection") || t.includes("maintenance")) return "noc";
+  if (t.includes("template")) return "template";
+  if (t.includes("campaign")) return "campaign";
+  if (t.includes("note")) return "note";
+  if (t.includes("media") || t.includes("attachment")) return "media";
+  return t || "event";
+}
+
+function customerHistoryItem(input) {
+  const at = customerHistoryDate(input.at || input.createdAt || input.updatedAt);
+  return {
+    id: String(input.id || [input.type || "event", at ? at.toISOString() : "sem-data", input.summary || input.label || ""].join(":")),
+    type: customerHistoryType(input.type),
+    rawType: String(input.rawType || input.type || ""),
+    label: String(input.label || input.type || "Evento"),
+    at: at ? at.toISOString() : null,
+    by: String(input.by || ""),
+    summary: String(input.summary || "").slice(0, 1200),
+    details: input.details || null,
+    tone: String(input.tone || ""),
+  };
+}
+
+function customerHistoryMessageSummary(m) {
+  if (m.templateName) return "Template Meta: " + getFriendlyTemplateName(m.templateName);
+  if (m.mediaUrl) return (m.filename || m.messageType || "Midia") + (m.text ? " - " + m.text : "");
+  if (m.messageType === "system" || m.direction === "system") return m.text || m.auditAction || "Evento operacional";
+  return m.text || m.intent || m.messageType || "Mensagem WhatsApp";
+}
+
+function customerHistoryMessageType(m) {
+  if (m.templateName || m.messageType === "template") return "template";
+  if (m.mediaUrl || ["image", "audio", "video", "document", "location", "sticker"].includes(String(m.messageType || "").toLowerCase())) return "media";
+  if (m.auditAction || m.direction === "system" || m.messageType === "system") return customerHistoryType(m.auditAction || m.raw?.event || "queue");
+  return "message";
+}
+
+function customerHistoryFilters(items) {
+  const labels = { all: "Todos", message: "Mensagens", queue: "Fila", priority: "Prioridade", department: "Setor", ai: "IA", crm: "CRM", noc: "NOC", campaign: "Campanhas", template: "Templates", media: "Midias", note: "Notas", event: "Eventos" };
+  const counts = items.reduce((acc, item) => { acc[item.type] = (acc[item.type] || 0) + 1; return acc; }, { all: items.length });
+  return Object.keys(labels).filter((k) => k === "all" || counts[k]).map((k) => ({ type: k, label: labels[k], count: counts[k] || 0 }));
+}
+
+router.get("/chatbot-admin/customers/:phone/history", requireAdminAuth, async (req, res) => {
+  try {
+    const tenant = normalizeTenantParam(req.query.tenant);
+    const phone = normalizeConversationPhone(req.params.phone);
+    if (!phone) return res.status(400).json({ ok: false, error: "phone_required" });
+    const messageQuery = conversationPhoneMongoQuery(tenant, phone);
+    const [lead, messages, campaignLogs] = await Promise.all([
+      Lead.findOne({ tenant, phone }).lean(),
+      messageQuery ? WaMessage.find(messageQuery).sort({ createdAt: 1, _id: 1 }).limit(1200).lean() : [],
+      CampaignExecutionLog.find({ tenant, executedAt: { $exists: true } }).sort({ executedAt: -1 }).limit(80).lean().catch(() => []),
+    ]);
+    const items = [];
+    const add = (input) => {
+      const item = customerHistoryItem(input || {});
+      if (item.at || item.summary || item.label) items.push(item);
+    };
+
+    for (const m of messages || []) {
+      const type = customerHistoryMessageType(m);
+      const status = m.direction === "inbound" ? "recebida" : String(m.deliveryStatus || m.metaStatus || (m.metaError ? "falhou" : "enviada") || "");
+      add({
+        id: "msg:" + String(m._id || m.waMessageId || m.wamid || ""),
+        type,
+        rawType: m.auditAction || m.messageType || m.direction || "message",
+        label: type === "template" ? "Template Meta enviado" : (type === "media" ? "Midia/anexo" : (m.direction === "inbound" ? "Mensagem recebida" : (m.direction === "outbound" ? "Mensagem enviada" : "Evento de atendimento"))),
+        at: m.auditAt || m.createdAt || m.updatedAt,
+        by: m.operatorName || m.operatorEmail || m.auditBy || (m.direction === "inbound" ? "Cliente" : "Sistema"),
+        summary: customerHistoryMessageSummary(m),
+        tone: m.metaError || status === "failed" ? "danger" : (m.direction === "inbound" ? "inbound" : "outbound"),
+        details: { direction: m.direction || "", status, from: m.from || "", to: m.to || "", messageType: m.messageType || "", origin: m.origin || "WhatsApp", templateName: m.templateName || "", mediaUrl: m.mediaUrl || "", filename: m.filename || "", wamid: m.wamid || "", waMessageId: m.waMessageId || "", auditAction: m.auditAction || "", replyToText: m.replyToText || "" },
+      });
+    }
+
+    const leadPayload = conversationLeadPayload(lead);
+    if (lead) {
+      (Array.isArray(lead.timelineEvents) ? lead.timelineEvents : []).forEach((ev, idx) => add({
+        id: "lead-event:" + idx + ":" + (ev.at || ev.label || ev.type || ""),
+        type: ev.type || "event",
+        label: ev.label || ev.type || "Evento operacional",
+        at: ev.at || lead.updatedAt,
+        by: ev.by || ev.operator || "",
+        summary: ev.to ? String(ev.label || ev.type || "Evento") + " para " + ev.to : String(ev.label || ev.type || "Evento operacional"),
+        details: ev,
+      }));
+      if (lead.aiAnalyzedAt || lead.aiSummary || lead.aiIntent) add({ id: "lead-ai:" + phone, type: "ai", label: "Analise de IA", at: lead.aiAnalyzedAt || lead.updatedAt, by: "IA Operacional", summary: lead.aiSummary || lead.aiIntent || "Analise operacional registrada", details: { intent: lead.aiIntent || "", sentiment: lead.aiSentiment || "", suggestedPriority: lead.aiSuggestedPriority || "", suggestedDepartment: lead.aiSuggestedDepartment || "", nextSteps: Array.isArray(lead.aiNextSteps) ? lead.aiNextSteps : [] } });
+      if (lead.pipelineStage || lead.dealValue || lead.nextFollowUpAt || lead.wonAt || lead.lostAt) add({ id: "lead-crm:" + phone, type: "crm", label: "Estado atual do CRM", at: lead.wonAt || lead.lostAt || lead.nextFollowUpAt || lead.updatedAt, by: lead.assignedToName || lead.assignedToEmail || "CRM", summary: "Etapa " + normalizedPipelineStage(lead.pipelineStage) + (lead.dealValue ? " - oportunidade R$ " + Number(lead.dealValue).toFixed(2) : ""), details: { pipelineStage: normalizedPipelineStage(lead.pipelineStage), dealValue: Number(lead.dealValue || 0), nextFollowUpAt: lead.nextFollowUpAt || null, followUpNote: lead.followUpNote || "", lostReason: lead.lostReason || "", wonAt: lead.wonAt || null, lostAt: lead.lostAt || null } });
+      if (lead.internalNotes) add({ id: "lead-note:" + phone, type: "note", label: "Nota interna", at: lead.updatedAt, by: lead.assignedToName || lead.assignedToEmail || "Equipe", summary: lead.internalNotes, details: { internalNotes: lead.internalNotes } });
+      const noc = diagnoseLeadNetwork(lead);
+      if (noc && (noc.status || noc.lastDropAt || noc.maintenance || noc.possibleCause)) add({ id: "lead-noc:" + phone, type: "noc", label: "Diagnostico NOC/Rede", at: noc.lastDropAt || lead.updatedAt, by: "BeesWeb/NOC", summary: (noc.status || "rede") + (noc.possibleCause ? " - " + noc.possibleCause : ""), details: noc, tone: noc.offline || noc.possibleRupture ? "danger" : (noc.oscillating || noc.maintenance ? "warn" : "") });
+    }
+
+    for (const log of campaignLogs || []) {
+      const campaignName = String(log.campaignKey || log.type || "campanha");
+      const leadCampaign = String(lead?.lastCampaign || "");
+      const related = leadCampaign && campaignName.toLowerCase().includes(leadCampaign.toLowerCase());
+      const messageRelated = (messages || []).some((m) => String(m.origin || "").toLowerCase().includes("campaign") || String(m.intent || "").toLowerCase().includes(campaignName.toLowerCase()));
+      if (!related && !messageRelated) continue;
+      add({ id: "campaign:" + String(log._id || log.executedAt || campaignName), type: "campaign", label: "Campanha enviada", at: log.executedAt || log.createdAt, by: String(log.mode || "campanha"), summary: campaignName, details: { type: log.type || "", campaignKey: log.campaignKey || "", totalSent: log.totalSent || 0, totalFailed: log.totalFailed || 0, totalSkipped: log.totalSkipped || 0, imageUrl: log.imageUrl || "" } });
+    }
+
+    const seen = new Set();
+    const deduped = items.filter((item) => {
+      const key = [item.type, item.at || "", item.summary || item.label || ""].join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
+
+    return res.json({ ok: true, phone, lead: leadPayload, items: deduped, filters: customerHistoryFilters(deduped), generatedAt: new Date().toISOString() });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 async function hideConversationMessages({ tenant, phone, admin }) {
   const q = conversationPhoneMongoQuery(tenant, phone);
   if (!q) return { matched: 0, modified: 0 };
